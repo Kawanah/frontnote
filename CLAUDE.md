@@ -26,6 +26,15 @@ apps/server/       Astro 7 standalone — routes API + dashboard, un seul déplo
 - Lancer le build serveur : `cd apps/server && PORT=4321 node dist/server/entry.mjs`
 - Dev : `apps/server/.env` (non versionné) doit contenir `DASHBOARD_TOKEN` pour se connecter au dashboard
 
+## Installer le widget sur un site
+
+1. Créer le projet dans le dashboard ; copier la ligne `<script>` (sur Astro : `is:inline`), avant `</body>`.
+2. **CSP du site** : ajouter `https://frontnote.kawanah.com` à `script-src` **et** `connect-src`, sinon le widget est bloqué sans message. Vérifier sur la page **en ligne** que l'en-tête CSP est bien envoyé : sur un site Astro pré-généré, le middleware ne tourne pas pour les pages statiques (cas de www.kawanah.com au 2026-09-26).
+3. Tester avec `?frontnote=<projet>` sur ordi et mobile.
+4. Pour l'agent de code : jeton agent dans le `.env` du site + consigne dans son `CLAUDE.md` (fournis par le dashboard).
+
+Premier site équipé : www.kawanah.com (projet `kawanah`, dépôt `Kawanah/Kawanah`).
+
 ## Déploiement (O2switch, https://frontnote.kawanah.com)
 
 - Dépôt `Kawanah/frontnote` (privé). **Un push sur `main` met en ligne** via `.github/workflows/deploy.yml` : tests + lint, `bun run paquet` (→ `deploy/frontnote/`), envoi FTPS dans `apps/frontnote/`, redémarrage par `tmp/restart.txt` (Passenger). Sans secrets FTP, rien n'est envoyé.
@@ -33,6 +42,7 @@ apps/server/       Astro 7 standalone — routes API + dashboard, un seul déplo
 - Build autonome (`vite.ssr.noExternal: true` dans `astro.config.mjs`) : `dist/` contient toutes les dépendances, le `package.json` déployé n'en a aucune. **Plus besoin de « Run NPM Install »** ; une nouvelle dépendance ne doit pas être native.
 - `GET /api/health` → `{ ok, db, node }` (503 si la base ne s'ouvre pas) : premier réflexe de diagnostic.
 - La base (`apps/frontnote/data/`) n'est jamais touchée par le déploiement.
+- Pièges rencontrés au premier déploiement : nom de variable mal saisi dans le Node.js Selector (`DASHBOARDS_TOKEN`, variable sans nom `=production`) → vérifier les noms lettre par lettre ; module natif (`better-sqlite3`) non installable → uniquement du JS pur ou des modules intégrés à Node.
 
 TypeScript épinglé en `~6.0` : `@typescript-eslint` ne supporte pas TS 7. tsup a besoin de `ignoreDeprecations: '6.0'` pour le build des types.
 

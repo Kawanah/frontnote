@@ -98,6 +98,9 @@ Contrat : Contrat-corrections-agents.md (statuts, champs, règles du § 7).
 - Ne jamais passer une correction en « validee ».`
 
 const script = `<script src="${origine}/frontnote.js" data-project="${projet.id}" data-api="${origine}" defer></script>`
+// Domaine à autoriser dans la CSP du site client
+const csp = `script-src  … ${origine}
+connect-src … ${origine}`
 ---
 
 <Layout title={projet.nom} fil={[[projet.nom]]}>
@@ -328,6 +331,24 @@ const script = `<script src="${origine}/frontnote.js" data-project="${projet.id}
         <button type="button" class="bouton" data-copier="#script">
           Copier
         </button>
+        <p class="text-xs text-muted">
+          Site Astro : ajouter <span class="font-mono">is:inline</span> dans la balise.
+        </p>
+        <div class="rounded-md border border-warn bg-warn-soft p-3 text-sm">
+          <p class="font-semibold text-warn">Si le site a une CSP (Content-Security-Policy)</p>
+          <p class="mt-1 text-muted">
+            Ajouter ce domaine aux deux directives, sinon le navigateur bloque le widget sans
+            message visible. Vérifier aussi que la CSP s'applique vraiment aux pages pré-générées
+            (en-têtes de la page en ligne).
+          </p>
+          <pre
+            id="csp"
+            class="mt-2 overflow-x-auto rounded bg-surface p-2 font-mono text-xs"
+          >{csp}</pre>
+          <button type="button" class="bouton mt-2" data-copier="#csp">
+            Copier
+          </button>
+        </div>
       </div>
 
       <details class="carte" open={erreur !== ''}>
