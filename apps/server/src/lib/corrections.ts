@@ -1,6 +1,7 @@
+import type { SQLInputValue } from 'node:sqlite'
 import { z } from 'zod'
 import { aujourdhui, maintenant } from './dates'
-import type { Db } from './db'
+import { transaction, type Db } from './db'
 import { DomainError } from './errors'
 import { bumpRevision, getProjet, nextId, projetIdSchema } from './projets'
 import { describeUserAgent } from './userAgent'
@@ -221,7 +222,7 @@ function historiqueDe(db: Db, ids: string[]): Map<string, EntreeHistorique[]> {
       `SELECT correction_id, date, auteur, de, vers, note FROM historique
        WHERE correction_id IN (${ids.map(() => '?').join(', ')}) ORDER BY id`
     )
-    .all(...ids) as (EntreeHistorique & { correction_id: string })[]
+    .all(...ids) as unknown as (EntreeHistorique & { correction_id: string })[]
   for (const { correction_id, ...entree } of rows) parCorrection.get(correction_id)?.push(entree)
   return parCorrection
 }
@@ -243,7 +244,7 @@ export function getCorrection(db: Db, id: string): Correction | null {
 
 export function listCorrections(db: Db, projet: string, filtre: Filtre = {}): Correction[] {
   const where = ['projet = ?']
-  const params: unknown[] = [projet]
+  const params: SQLInputValue[] = [projet]
   if (filtre.statut?.length) {
     where.push(`statut IN (${filtre.statut.map(() => '?').join(', ')})`)
     params.push(...filtre.statut)
@@ -251,7 +252,7 @@ export function listCorrections(db: Db, projet: string, filtre: Filtre = {}): Co
   for (const key of ['lot', 'nature', 'appareil'] as const) {
     if (filtre[key]) {
       where.push(`${key} = ?`)
-      params.push(filtre[key])
+      params.push(filtre[key] as string)
     }
   }
   const rows = db
@@ -269,7 +270,7 @@ export function listCorrections(db: Db, projet: string, filtre: Filtre = {}): Co
 // --- Création par le widget --------------------------------------------------
 
 export function creerDepuisWidget(db: Db, input: Omit<Signalement, '_honey'>): Correction {
-  return db.transaction(() => {
+  return transaction(db, () => {
     const projet = getProjet(db, input.projet)
     if (!projet) throw new DomainError(404, `Projet inconnu : « ${input.projet} »`)
 
@@ -318,7 +319,7 @@ export function creerDepuisWidget(db: Db, input: Omit<Signalement, '_honey'>): C
     ajouterHistorique(db, id, { auteur: 'client', de: null, vers: 'nouvelle', note: '' })
     bumpRevision(db, projet.id)
     return getCorrection(db, id) as Correction
-  })()
+  })
 }
 
 // --- Statuts (contrat § 4) ---------------------------------------------------
@@ -404,7 +405,7 @@ export function mettreAJour(
   role: 'agence' | 'agent',
   patch: MiseAJourAgence | MiseAJourAgent
 ): Correction {
-  return db.transaction(() => {
+  return transaction(db, () => {
     const actuelle = getCorrection(db, id)
     if (!actuelle) throw new DomainError(404, `Correction ${id} introuvable`)
     const projet = getProjet(db, actuelle.projet)
@@ -453,11 +454,11 @@ export function mettreAJour(
 
     const colonnes = Object.keys(ecrits)
     if (colonnes.length) {
-      const valeurs = colonnes.map((col) => {
+      const valeurs = colonnes.map((col): SQLInputValue => {
         const value = ecrits[col]
         return (JSON_COLUMNS as readonly string[]).includes(col) && value != null
           ? JSON.stringify(value)
-          : (value ?? null)
+          : ((value ?? null) as SQLInputValue)
       })
       // Noms de colonnes sûrs : clés validées par les schémas stricts ci-dessus
       db.prepare(
@@ -476,7 +477,7 @@ export function mettreAJour(
     }
     bumpRevision(db, projet.id)
     return getCorrection(db, id) as Correction
-  })()
+  })
 }
 
 // --- Export pour l'agent (contrat § 6) ---------------------------------------

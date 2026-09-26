@@ -1,8 +1,9 @@
-import Database from 'better-sqlite3'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 
-export type Db = Database.Database
+// SQLite intégré à Node (≥ 22.13) : aucun module compilé à installer sur le serveur
+export type Db = DatabaseSync
 
 // Migrations appliquées dans l'ordre, suivies par PRAGMA user_version.
 // Ne jamais modifier une migration déployée : en ajouter une nouvelle.
@@ -77,21 +78,38 @@ export const MIGRATIONS = [
    CREATE INDEX historique_correction ON historique (correction_id);`,
 ]
 
+// Exécute fn dans une transaction : tout ou rien
+export function transaction<T>(db: Db, fn: () => T): T {
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    const result = fn()
+    db.exec('COMMIT')
+    return result
+  } catch (err) {
+    db.exec('ROLLBACK')
+    throw err
+  }
+}
+
+export const userVersion = (db: Db) =>
+  (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version
+
 function migrate(db: Db) {
-  const current = db.pragma('user_version', { simple: true }) as number
+  const current = userVersion(db)
   MIGRATIONS.slice(current).forEach((sql, i) => {
-    db.transaction(() => {
+    transaction(db, () => {
       db.exec(sql)
-      db.pragma(`user_version = ${current + i + 1}`)
-    })()
+      db.exec(`PRAGMA user_version = ${current + i + 1}`)
+    })
   })
 }
 
 export function openDatabase(path: string): Db {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
-  const db = new Database(path)
-  db.pragma('journal_mode = WAL')
-  db.pragma('foreign_keys = ON')
+  const db = new DatabaseSync(path)
+  db.exec('PRAGMA journal_mode = WAL')
+  db.exec('PRAGMA foreign_keys = ON')
+  db.exec('PRAGMA busy_timeout = 5000')
   migrate(db)
   return db
 }

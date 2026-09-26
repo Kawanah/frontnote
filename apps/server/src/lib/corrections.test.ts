@@ -12,7 +12,7 @@ import {
   transitionsPossibles,
   type Signalement,
 } from './corrections'
-import { MIGRATIONS, openDatabase, type Db } from './db'
+import { MIGRATIONS, openDatabase, userVersion, type Db } from './db'
 import { DomainError } from './errors'
 import { createProjet, getProjet } from './projets'
 
@@ -271,7 +271,7 @@ describe('base', () => {
     creerDepuisWidget(first, signalement)
     first.close()
     const again = openDatabase(path)
-    expect(again.pragma('user_version', { simple: true })).toBe(MIGRATIONS.length)
+    expect(userVersion(again)).toBe(MIGRATIONS.length)
     expect(listCorrections(again, 'kawanah')).toHaveLength(1)
     again.close()
   })

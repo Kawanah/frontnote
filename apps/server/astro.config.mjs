@@ -21,5 +21,9 @@ export default defineConfig({
       DASHBOARD_TOKEN: envField.string({ context: 'server', access: 'secret', optional: true }),
     },
   },
-  vite: { plugins: [tailwindcss()] },
+  vite: {
+    plugins: [tailwindcss()],
+    // Tout est inclus dans le build : rien à installer sur O2switch (pas de npm install)
+    ssr: { noExternal: true },
+  },
 })

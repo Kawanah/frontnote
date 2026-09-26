@@ -15,7 +15,7 @@ apps/server/       Astro 7 standalone — routes API + dashboard, un seul déplo
 
 ## Commandes (depuis la racine)
 
-- `bun install` — installe tout (`bunfig.toml` force `linker = "hoisted"` : ne pas retirer, le serveur Node standalone ne résout pas `cookie` & co en mode isolé)
+- `bun install` — installe tout (`bunfig.toml` force `linker = "hoisted"`)
 - `bun run dev` — serveur Astro (API + dashboard)
 - `bun run dev:widget` — build widget en watch
 - `bun run build` — widget puis serveur
@@ -30,7 +30,8 @@ apps/server/       Astro 7 standalone — routes API + dashboard, un seul déplo
 
 - Dépôt `Kawanah/frontnote` (privé). **Un push sur `main` met en ligne** via `.github/workflows/deploy.yml` : tests + lint, `bun run paquet` (→ `deploy/frontnote/`), envoi FTPS dans `apps/frontnote/`, redémarrage par `tmp/restart.txt` (Passenger). Sans secrets FTP, rien n'est envoyé.
 - Secrets GitHub : `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD` uniquement. `DASHBOARD_TOKEN` et `NODE_ENV=production` vivent dans les variables du Node.js Selector (lues au démarrage, pas au build).
-- Nouvelle dépendance serveur → cliquer « Run NPM Install » dans le Node.js Selector après le déploiement.
+- Build autonome (`vite.ssr.noExternal: true` dans `astro.config.mjs`) : `dist/` contient toutes les dépendances, le `package.json` déployé n'en a aucune. **Plus besoin de « Run NPM Install »** ; une nouvelle dépendance ne doit pas être native.
+- `GET /api/health` → `{ ok, db, node }` (503 si la base ne s'ouvre pas) : premier réflexe de diagnostic.
 - La base (`apps/frontnote/data/`) n'est jamais touchée par le déploiement.
 
 TypeScript épinglé en `~6.0` : `@typescript-eslint` ne supporte pas TS 7. tsup a besoin de `ignoreDeprecations: '6.0'` pour le build des types.
@@ -81,7 +82,7 @@ Le modèle suit `/Users/martinlaetitia/Documents/011-KAWANAH-STUDIO/Contrat-corr
 
 ## Décisions déjà tranchées (ne pas re-litiger)
 
-- **DB : SQLite via `better-sqlite3`.** Pas de service externe. Module compilé : valider l'install au premier déploiement O2switch.
+- **DB : SQLite intégré à Node (`node:sqlite`, Node ≥ 22.13).** Pas de service externe, aucun module compilé. `better-sqlite3` abandonné le 2026-09-26 : son installation échouait sur O2switch.
 - **Pas de Supabase.** L'outil est transverse, sa DB lui appartient et n'est liée à aucun client.
 - **Notifications : Brevo en `fetch` natif**, pas de SDK.
 - **Auth dashboard : simple** (utilisatrice unique) — jeton agence `DASHBOARD_TOKEN` + cookie de session signé. Ne pas sur-concevoir.
