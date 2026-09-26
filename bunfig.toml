@@ -1,0 +1,3 @@
+[install]
+# node_modules à plat : le serveur Node (et O2switch) résout les dépendances transitives d’Astro
+linker = "hoisted"

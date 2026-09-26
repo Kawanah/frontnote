@@ -1,0 +1,42 @@
+{
+  "name": "frontnote",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter server dev",
+    "dev:widget": "bun run --filter @kawanah/frontnote dev",
+    "build": "bun run --filter @kawanah/frontnote build && bun run --filter server build",
+    "lint": "eslint packages apps",
+    "format": "prettier --write packages apps",
+    "test": "vitest run",
+    "prepare": "husky || true"
+  },
+  "lint-staged": {
+    "*.{ts,mjs,astro}": [
+      "prettier --write",
+      "eslint --max-warnings=0"
+    ],
+    "*.{json,md,css}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.70.1",
+    "@typescript-eslint/parser": "^8.70.1",
+    "eslint": "^10.11.0",
+    "eslint-plugin-astro": "^3.2.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.9",
+    "prettier-plugin-astro": "^1.1.0",
+    "typescript": "~6.0",
+    "vitest": "^5.0.2"
+  }
+}
