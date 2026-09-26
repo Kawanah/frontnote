@@ -2,9 +2,9 @@ import type { TechContext } from './context'
 import type { Draft } from './types'
 
 export interface CommentPayload extends Draft {
-  projectId: string
+  projet: string
   url: string
-  context?: TechContext
+  contexte?: TechContext
 }
 
 // URL de la page sans le paramètre d'activation
@@ -18,7 +18,7 @@ export function pageUrl(href: string): string {
 export async function postComment(apiUrl: string, payload: CommentPayload): Promise<void> {
   let response: Response
   try {
-    response = await fetch(`${apiUrl.replace(/\/+$/, '')}/api/comments`, {
+    response = await fetch(`${apiUrl.replace(/\/+$/, '')}/api/corrections`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

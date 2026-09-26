@@ -24,6 +24,7 @@ apps/server/       Astro 7 standalone — routes API + dashboard, un seul déplo
 - Vérif types : `bunx tsc -p packages/widget` · `cd apps/server && bunx astro check`
 - Démo widget : `.claude/launch.json` → `server` (port 4400) + `demo` (port 5173, sert `packages/widget`) ; ouvrir `http://localhost:5173/demo/?frontnote=demo` après `bun run build`. Le 4321 est souvent pris par d'autres projets Astro
 - Lancer le build serveur : `cd apps/server && PORT=4321 node dist/server/entry.mjs`
+- Dev : `apps/server/.env` (non versionné) doit contenir `DASHBOARD_TOKEN` pour se connecter au dashboard
 
 TypeScript épinglé en `~6.0` : `@typescript-eslint` ne supporte pas TS 7. tsup a besoin de `ignoreDeprecations: '6.0'` pour le build des types.
 
@@ -33,17 +34,22 @@ Trois briques **découplées**, c'est le point structurant du projet :
 
 1. **Widget** (`@kawanah/frontnote`) — JS vanilla, zéro dépendance framework. Doit marcher identiquement sur Astro, Next, WordPress. Overlay via `pointer-events`, positionnement via `getBoundingClientRect`. C'est la **seule** brique publiée en npm / CDN.
 2. **API centrale** — routes API Astro (`apps/server/src/pages/api/`), hébergée **une seule fois**, sert tous les sites clients :
-   - `POST /api/comments` — public (widget) : CORS `*`, rate limit 30/10 min/IP, validation Zod, honeypot `_honey` (faux 201 si rempli)
-   - `GET /api/comments?project=&status=&type=&device=` — token requis
-   - `PATCH /api/comments/:id` `{ status }` — token requis
-   - Auth : `Authorization: Bearer <DASHBOARD_TOKEN>` ; token absent → tout refusé
-   - Logique métier dans `src/lib/` (testable sans serveur) ; seul `src/lib/runtime.ts` lit `astro:env`
-3. **Dashboard** — pages Astro de `apps/server`, vue multi-projets, filtrage par site et par type, marquage résolu.
+   - `POST /api/corrections` — public (widget) : CORS `*`, rate limit 30/10 min/IP, Zod, honeypot `_honey` (faux 201). Crée une correction `nouvelle` ; projet inconnu → 404
+   - `GET /api/projets/:projet/corrections?statut=a_traiter,question_client&lot=&nature=&appareil=` — **vue agent**, JSON au format du § 6 du contrat. Jeton agent du projet, jeton agence ou session du dashboard
+   - `PATCH /api/corrections/:id` `{ revision, statut?, ...champs }` — l'agent n'écrit que les champs du § 5 (schéma strict), l'agence ceux de qualification ; `revision` périmée → 409
+   - Rôles (`lib/auth.ts`) : agence = `DASHBOARD_TOKEN` ; agent = jeton par projet (seule son empreinte SHA-256 est stockée, généré depuis le dashboard) ; client = widget sans jeton
+   - Logique métier dans `src/lib/` (testable sans serveur) ; seul `src/lib/runtime.ts` lit `astro:env`. Limiteurs dans `lib/limites.ts` (le frontmatter d'une page Astro s'exécute à chaque requête)
+3. **Dashboard** — pages Astro (`/`, `/projets/:projet`, `/projets/:projet/:id`), session par cookie signé après saisie du jeton agence (`/connexion`, `middleware.ts`). Qualification, changements de statut, retour de l'agent, historique, accès agent (URL, jeton, consigne CLAUDE.md, « Copier pour l'agent »), ligne d'installation du widget.
 
 Contrainte à ne pas casser : **l'API et le dashboard ne sont jamais dupliqués par projet client**. Seul le widget s'installe côté client :
 
 ```html
-<script src="https://<cdn>/frontnote.js" data-project="coress" data-api="https://<api>"></script>
+<script
+  src="https://<api>/frontnote.js"
+  data-project="coress"
+  data-api="https://<api>"
+  defer
+></script>
 ```
 
 ```js
@@ -51,24 +57,32 @@ import { initFrontNote } from '@kawanah/frontnote'
 initFrontNote({ projectId: 'coress', apiUrl: 'https://<api>' })
 ```
 
-Widget (`packages/widget/src/`) : `overlay.ts` = UI dans un Shadow DOM (bouton, surlignage, pins, formulaire), écouteurs en phase de capture sur `window` qui neutralisent les clics du site pendant le mode commentaire ; `mountOverlay` renvoie une fonction de nettoyage. `selector.ts` = sélecteur sans classes (#id simple sinon `tag:nth-of-type`). Les types de retour sont dupliqués dans `types.ts` et `apps/server/src/lib/comments.ts` : les garder synchronisés. Pins affichés = ceux envoyés pendant la visite uniquement.
+Widget (`packages/widget/src/`) : `overlay.ts` = UI dans un Shadow DOM (bouton, surlignage, pins, formulaire), écouteurs en phase de capture sur `window` qui neutralisent les clics du site pendant le mode commentaire ; `mountOverlay` renvoie une fonction de nettoyage. `selector.ts` = sélecteur sans classes (#id simple sinon `tag:nth-of-type`). Types client et appareils dupliqués dans `types.ts` et `apps/server/src/lib/vocabulaire.ts` : les garder synchronisés. Type Texte : le « texte actuel » est relevé sur l'élément, le « nouveau texte » est envoyé **sans aucune retouche** (pas de trim). `zone` est décrite automatiquement (`describeElement`). Pins affichés = ceux envoyés pendant la visite uniquement.
 
 Activation : widget inactif par défaut, activé par le lien `?frontnote=<projectId>` et mémorisé en `localStorage` ; `?frontnote=off` désactive (`packages/widget/src/activation.ts`).
 
-## Modèle de données
+## Modèle de données : contrat de corrections
 
-Table SQLite `comments`. Schéma = migrations dans `apps/server/src/lib/db.ts` (suivies par `PRAGMA user_version`, appliquées à l'ouverture) : ne jamais modifier une migration publiée, en ajouter une. Les listes (types, écrans, statuts) sont validées par Zod, pas par des `CHECK`. Un commentaire porte : `projectId`, `url` de la page, sélecteur CSS + `x`/`y` = position du clic **dans l'élément**, en fraction de sa taille (0 à 1), `type` (`texte` · `couleur` · `image` · `lien` · `bug` · `autre`), `device` = écran concerné (`desktop` · `mobile`, présélectionné selon la fenêtre < 768 px), `message`, valeur couleur optionnelle, auteur, `context` (JSON : UA, langue, fenêtre, écran, densité, tactile — relevé par `packages/widget/src/context.ts`), statut (ouvert/résolu), timestamp.
+Le modèle suit `/Users/martinlaetitia/Documents/011-KAWANAH-STUDIO/Contrat-corrections-agents.md` (v2). **Le relire avant toute modification** des champs, statuts ou droits. Vocabulaire et libellés : `apps/server/src/lib/vocabulaire.ts`.
+
+- Tables (`lib/db.ts`, migrations suivies par `PRAGMA user_version` ; ne jamais modifier une migration déployée, en ajouter une) : `projets` (préfixe, compteur qui ne recule jamais, natures actives, empreinte du jeton agent, `revision`), `corrections` (colonnes = noms de champs du contrat, + ancrage `url`/`selecteur`/`x`/`y`, `type_client`, `couleur`, `auteur`, `contexte`), `historique` (ajout seul).
+- Identifiants `REC-001` par projet (préfixe et premier numéro réglables à la création).
+- Statuts et droits : `lib/corrections.ts` (`CIBLES` par rôle, `DEPUIS` par statut, `champsManquants`). L'agent ne pose jamais `validee`.
+- Le client choisit un type simple (texte, couleur, image, lien, bug, autre) → `nature` proposée (`NATURE_PAR_TYPE`), confirmée par l'agence. Écran : Desktop / Mobile / Les deux → `appareil` `ordinateur` / `mobile` / `tous`.
+- `texte_attendu` : jamais retouché, jamais modifiable dans le dashboard (règle 7.1).
+- Chaque écriture incrémente `projets.revision`.
 
 ## Décisions déjà tranchées (ne pas re-litiger)
 
 - **DB : SQLite via `better-sqlite3`.** Pas de service externe. Module compilé : valider l'install au premier déploiement O2switch.
 - **Pas de Supabase.** L'outil est transverse, sa DB lui appartient et n'est liée à aucun client.
 - **Notifications : Brevo en `fetch` natif**, pas de SDK.
-- **Auth dashboard : simple** (utilisatrice unique) — token unique (`DASHBOARD_TOKEN`). Ne pas sur-concevoir.
+- **Auth dashboard : simple** (utilisatrice unique) — jeton agence `DASHBOARD_TOKEN` + cookie de session signé. Ne pas sur-concevoir.
 - **Nom : FrontNote.**
 - **Hébergement : sous-domaine O2switch**, Astro standalone.
 - **V1 sans screenshot, sans upload d'image.**
-- **Pas de priorité** : remplacée par l'écran concerné (desktop / mobile).
+- **Pas de priorité côté client** : l'écran concerné à la place ; la `gravite` du contrat est posée par l'agence.
+- **Le dashboard est la source unique** des corrections, lu et mis à jour par l'agent de code (réponses au § 9 dans `SPEC.md`).
 - **Activation par lien spécial** `?frontnote=<projectId>`.
 
 ## Questions ouvertes

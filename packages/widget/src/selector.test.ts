@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
-import { getClickPosition, getSelector } from './selector'
+import { describeElement, getClickPosition, getSelector, readText } from './selector'
 
 function page(html: string) {
   document.body.innerHTML = html
@@ -51,5 +51,18 @@ describe('getClickPosition', () => {
       x: 0.5,
       y: 0.5,
     })
+  })
+})
+
+describe('describeElement / readText', () => {
+  it('décrit un élément pour le champ zone', () => {
+    page(`<h2>  Nos   chambres </h2><img alt="Vue sur la forêt"><div></div>
+      <p>${'Un très long paragraphe '.repeat(5)}</p>`)
+    const [h2, img, div, p] = ['h2', 'img', 'div', 'p'].map((t) => document.querySelector(t)!)
+    expect(readText(h2!)).toBe('Nos chambres')
+    expect(describeElement(h2!)).toBe('titre « Nos chambres »')
+    expect(describeElement(img!)).toBe('image « Vue sur la forêt »')
+    expect(describeElement(div!)).toBe('bloc')
+    expect(describeElement(p!)).toMatch(/^paragraphe « Un très long .*… »$/)
   })
 })

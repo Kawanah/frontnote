@@ -129,6 +129,8 @@ textarea {
   background: var(--fn-paper);
   box-shadow: var(--fn-shadow);
   pointer-events: auto;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
 }
 
 .panel.sheet {
@@ -196,6 +198,18 @@ textarea,
 textarea {
   min-height: 90px;
   resize: vertical;
+}
+
+.current {
+  max-height: 96px;
+  margin: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border-radius: 8px;
+  background: #f4f4f1;
+  color: var(--fn-muted);
+  font-size: 13px;
+  white-space: pre-wrap;
 }
 
 .swatch {

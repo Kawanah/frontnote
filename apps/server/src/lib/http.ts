@@ -1,3 +1,5 @@
+import { DomainError } from './errors'
+
 // Le widget tourne sur les domaines des sites clients : l'API accepte toutes les
 // origines, sans cookies. Les routes de lecture/modification exigent le token.
 const CORS_HEADERS = {
@@ -29,3 +31,20 @@ export async function readJson(request: Request): Promise<unknown> {
 export function clientIp(request: Request, fallback: string): string {
   return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || fallback
 }
+
+// Réponse d'erreur métier, ou 500 sans détail
+export function erreur(err: unknown): Response {
+  if (err instanceof DomainError) return json({ error: err.message }, err.status)
+  console.error(err)
+  return json({ error: 'Erreur interne' }, 500)
+}
+
+// Erreurs de validation Zod, lisibles par l'agent
+export const invalide = (issues: { path: PropertyKey[]; message: string }[]) =>
+  json(
+    {
+      error: 'Données invalides',
+      issues: issues.map((i) => ({ champ: i.path.map(String).join('.'), message: i.message })),
+    },
+    400
+  )

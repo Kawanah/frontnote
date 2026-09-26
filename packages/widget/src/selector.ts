@@ -45,3 +45,43 @@ export function getClickPosition(rect: DOMRect, clientX: number, clientY: number
     size > 0 ? Math.round(Math.min(1, Math.max(0, offset / size)) * 10_000) / 10_000 : 0.5
   return { x: ratio(clientX - rect.left, rect.width), y: ratio(clientY - rect.top, rect.height) }
 }
+
+// Texte visible d'un élément, espaces regroupés (sert de « texte actuel »)
+export function readText(el: Element): string {
+  return (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 5000)
+}
+
+const NOMS: Record<string, string> = {
+  a: 'lien',
+  button: 'bouton',
+  p: 'paragraphe',
+  img: 'image',
+  picture: 'image',
+  svg: 'icône',
+  video: 'vidéo',
+  li: 'élément de liste',
+  ul: 'liste',
+  ol: 'liste',
+  nav: 'menu',
+  header: 'en-tête',
+  footer: 'pied de page',
+  section: 'section',
+  article: 'article',
+  form: 'formulaire',
+  input: 'champ',
+  textarea: 'champ',
+  select: 'liste déroulante',
+  label: 'libellé',
+  figure: 'figure',
+  table: 'tableau',
+  blockquote: 'citation',
+}
+
+// Description lisible de l'élément pour le champ « zone » : bouton « Réserver »
+export function describeElement(el: Element): string {
+  const tag = el.tagName.toLowerCase()
+  const nom = /^h[1-6]$/.test(tag) ? 'titre' : (NOMS[tag] ?? 'bloc')
+  const libelle = el.getAttribute('aria-label') || el.getAttribute('alt') || readText(el)
+  const extrait = libelle.length > 60 ? `${libelle.slice(0, 57).trimEnd()}…` : libelle
+  return extrait ? `${nom} « ${extrait} »` : nom
+}

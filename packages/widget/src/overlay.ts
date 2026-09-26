@@ -1,13 +1,13 @@
-import { getClickPosition, getSelector, type Position } from './selector'
+import { describeElement, getClickPosition, getSelector, readText, type Position } from './selector'
 import { PAGE_STYLES, STYLES } from './styles'
 import {
+  APPAREIL_LABELS,
+  APPAREILS,
   COMMENT_TYPES,
-  DEVICE_LABELS,
-  DEVICES,
   TYPE_LABELS,
   currentDevice,
+  type Appareil,
   type CommentType,
-  type Device,
   type Draft,
 } from './types'
 
@@ -32,25 +32,39 @@ const PANEL_HTML = `
   </fieldset>
   <fieldset class="types">
     <legend>Écran concerné</legend>
-    ${DEVICES.map(
-      (device) => `<label class="type">
-        <input type="radio" name="device" value="${device}">
-        <span>${DEVICE_LABELS[device]}</span>
+    ${APPAREILS.map(
+      (appareil) => `<label class="type">
+        <input type="radio" name="appareil" value="${appareil}">
+        <span>${APPAREIL_LABELS[appareil]}</span>
       </label>`
     ).join('')}
   </fieldset>
   <label data-color hidden>
     <span class="label">Couleur souhaitée</span>
-    <input class="swatch" type="color" name="color" value="#000000">
+    <input class="swatch" type="color" name="couleur" value="#000000">
+  </label>
+  <div data-texte hidden>
+    <span class="label">Texte actuel</span>
+    <p class="current" data-current></p>
+  </div>
+  <label data-texte hidden>
+    <span class="label">Nouveau texte, collé tel quel</span>
+    <textarea name="texte_attendu" maxlength="10000"
+      placeholder="Le texte exact à afficher à la place"></textarea>
   </label>
   <label>
-    <span class="label">Votre retour</span>
-    <textarea name="message" maxlength="5000"
-      placeholder="Ex. remplacer par la photo de l'équipe"></textarea>
+    <span class="label" data-constat-label>Ce qui ne va pas</span>
+    <textarea name="constat" maxlength="2000"
+      placeholder="Ex. la photo est floue sur mobile"></textarea>
+  </label>
+  <label data-attendu>
+    <span class="label">Ce que vous voulez à la place (facultatif)</span>
+    <textarea name="attendu" maxlength="2000" rows="2"
+      placeholder="Ex. la photo de l'équipe"></textarea>
   </label>
   <label>
     <span class="label">Votre prénom (facultatif)</span>
-    <input class="text" name="author" maxlength="100" autocomplete="given-name">
+    <input class="text" name="auteur" maxlength="100" autocomplete="given-name">
   </label>
   <input class="honey" name="_honey" tabindex="-1" autocomplete="off" aria-hidden="true">
   <p class="error" role="alert" hidden></p>
@@ -247,32 +261,64 @@ export function mountOverlay(submit: (draft: Draft) => Promise<void>): () => voi
 
     const field = <T extends Element>(q: string) => panel.querySelector(q) as T
     const colorField = field<HTMLElement>('[data-color]')
-    const swatch = field<HTMLInputElement>('[name=color]')
+    const swatch = field<HTMLInputElement>('[name=couleur]')
     let colorChosen = false
     swatch.addEventListener('input', () => (colorChosen = true))
-    const message = field<HTMLTextAreaElement>('textarea')
-    const author = field<HTMLInputElement>('[name=author]')
+    const texteBlocs = panel.querySelectorAll<HTMLElement>('[data-texte]')
+    const texteAttendu = field<HTMLTextAreaElement>('[name=texte_attendu]')
+    const constat = field<HTMLTextAreaElement>('[name=constat]')
+    const constatLabel = field<HTMLElement>('[data-constat-label]')
+    const attenduField = field<HTMLElement>('[data-attendu]')
+    const attendu = field<HTMLTextAreaElement>('[name=attendu]')
+    const author = field<HTMLInputElement>('[name=auteur]')
     const error = field<HTMLElement>('.error')
     const send = field<HTMLButtonElement>('[type=submit]')
+
+    const texteActuel = readText(element)
+    field<HTMLElement>('[data-current]').textContent =
+      texteActuel || '(aucun texte sur cet élément)'
     author.value = readAuthor()
-    field<HTMLInputElement>(`[name=device][value=${currentDevice()}]`).checked = true
+    field<HTMLInputElement>(`[name=appareil][value=${currentDevice()}]`).checked = true
+
+    const selectedType = () => new FormData(panel).get('type') as CommentType
+
+    // Texte : texte actuel + nouveau texte ; autres types : constat + attendu
+    function updateMode() {
+      const type = selectedType()
+      const texte = type === 'texte'
+      texteBlocs.forEach((bloc) => (bloc.hidden = !texte))
+      attenduField.hidden = texte
+      colorField.hidden = type !== 'couleur'
+      constatLabel.textContent = texte ? 'Commentaire (facultatif)' : 'Ce qui ne va pas'
+    }
+    updateMode()
 
     panel.addEventListener('change', () => {
-      colorField.hidden = new FormData(panel).get('type') !== 'couleur'
+      updateMode()
       placePanel(current)
     })
     field<HTMLButtonElement>('[data-cancel]').addEventListener('click', () => closeDraft())
 
+    const showError = (text: string, focus?: HTMLElement) => {
+      error.textContent = text
+      error.hidden = false
+      focus?.focus()
+    }
+
     panel.addEventListener('submit', async (event) => {
       event.preventDefault()
       const data = new FormData(panel)
-      const type = data.get('type') as CommentType
-      const text = message.value.trim()
-      if (!text) {
-        error.textContent = "Écrivez votre retour avant de l'envoyer."
-        error.hidden = false
-        message.focus()
-        return
+      const type = selectedType()
+      const texte = type === 'texte'
+      // Texte du client repris mot pour mot : aucune retouche (contrat § 7.1)
+      const nouveauTexte = texteAttendu.value
+      const constatValue = constat.value.trim()
+
+      if (texte && !nouveauTexte.trim()) {
+        return showError('Collez le nouveau texte avant d’envoyer.', texteAttendu)
+      }
+      if (!texte && !constatValue) {
+        return showError('Dites ce qui ne va pas avant d’envoyer.', constat)
       }
 
       send.disabled = true
@@ -281,21 +327,24 @@ export function mountOverlay(submit: (draft: Draft) => Promise<void>): () => voi
       const name = author.value.trim()
       try {
         await submit({
-          selector,
+          selecteur: selector,
           ...position,
           type,
-          device: data.get('device') as Device,
-          message: text,
-          color: type === 'couleur' && colorChosen ? swatch.value : undefined,
-          author: name || undefined,
+          appareil: data.get('appareil') as Appareil,
+          zone: describeElement(element),
+          texte_actuel: texte ? texteActuel : undefined,
+          texte_attendu: texte ? nouveauTexte : undefined,
+          constat: constatValue || undefined,
+          attendu: (!texte && attendu.value.trim()) || undefined,
+          couleur: type === 'couleur' && colorChosen ? swatch.value : undefined,
+          auteur: name || undefined,
           _honey: String(data.get('_honey') ?? '') || undefined,
         })
         saveAuthor(name)
         closeDraft(true)
         showToast('Merci, votre retour est envoyé.')
       } catch (err) {
-        error.textContent = err instanceof Error ? err.message : "Le retour n'a pas pu être envoyé."
-        error.hidden = false
+        showError(err instanceof Error ? err.message : "Le retour n'a pas pu être envoyé.")
         send.disabled = false
         send.textContent = 'Envoyer'
       }
@@ -304,7 +353,7 @@ export function mountOverlay(submit: (draft: Draft) => Promise<void>): () => voi
     const current: OpenDraft = { pin, panel }
     draft = current
     render()
-    message.focus({ preventScroll: true })
+    ;(selectedType() === 'texte' ? texteAttendu : constat).focus({ preventScroll: true })
     revealAboveSheet(current)
   }
 

@@ -1,10 +1,100 @@
 ---
 import Layout from '../layouts/Layout.astro'
+import { DomainError } from '../lib/errors'
+import { createProjet, listProjets, nouveauProjetSchema } from '../lib/projets'
+import { getDb } from '../lib/runtime'
+
+let erreur = ''
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData()
+  const parsed = nouveauProjetSchema.safeParse({
+    id: form.get('id'),
+    nom: form.get('nom'),
+    prefixe: form.get('prefixe') || undefined,
+    premier_numero: form.get('premier_numero') || undefined,
+  })
+  if (!parsed.success) {
+    erreur = parsed.error.issues.map((i) => i.message).join(' ; ')
+  } else {
+    try {
+      createProjet(getDb(), parsed.data)
+      return Astro.redirect(`/projets/${parsed.data.id}`)
+    } catch (err) {
+      if (!(err instanceof DomainError)) throw err
+      erreur = err.message
+    }
+  }
+}
+
+const projets = listProjets(getDb())
 ---
 
-<Layout title="Dashboard">
-  <main class="mx-auto max-w-3xl p-8">
-    <h1 class="text-2xl font-semibold">FrontNote</h1>
-    <p class="mt-2">Dashboard des retours clients : en construction.</p>
-  </main>
+<Layout title="Projets">
+  <div class="mb-6 flex items-end justify-between gap-4">
+    <h1 class="text-2xl font-bold tracking-tight">Projets</h1>
+  </div>
+
+  {projets.length === 0 ? (
+    <p class="carte text-muted">Aucun projet pour l'instant. Créez le premier ci-dessous.</p>
+  ) : (
+    <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {projets.map((p) => (
+        <li>
+          <a href={`/projets/${p.id}`} class="carte block h-full hover:border-ink">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <p class="font-semibold">{p.nom}</p>
+                <p class="font-mono text-xs text-muted">{p.id}</p>
+              </div>
+              {p.nouvelles > 0 && (
+                <span class="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent">
+                  {p.nouvelles} nouvelle{p.nouvelles > 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            <p class="mt-4 text-sm text-muted">
+              {p.ouvertes} ouverte{p.ouvertes > 1 ? 's' : ''} · {p.total} au total
+            </p>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )}
+
+  <details class="carte mt-8" open={erreur !== '' || projets.length === 0}>
+    <summary class="cursor-pointer font-semibold">Nouveau projet</summary>
+    <form method="post" class="mt-4 grid gap-4 sm:grid-cols-2">
+      <label>
+        <span class="etiquette">Identifiant (sert dans data-project)</span>
+        <input
+          class="champ font-mono"
+          name="id"
+          required
+          pattern="[a-z0-9\-]{1,50}"
+          placeholder="kawanah"
+        />
+      </label>
+      <label>
+        <span class="etiquette">Nom</span>
+        <input class="champ" name="nom" required maxlength="100" placeholder="Kawanah Studio" />
+      </label>
+      <label>
+        <span class="etiquette">Préfixe des identifiants</span>
+        <input class="champ font-mono" name="prefixe" value="REC-" pattern="[A-Z][A-Z0-9]{0,9}-" />
+      </label>
+      <label>
+        <span class="etiquette">Premier numéro (12 si REC-001 à 011 existent déjà)</span>
+        <input class="champ" type="number" name="premier_numero" value="1" min="1" />
+      </label>
+      {erreur && (
+        <p class="text-sm text-danger sm:col-span-2" role="alert">
+          {erreur}
+        </p>
+      )}
+      <div class="sm:col-span-2">
+        <button class="bouton-principal">Créer le projet</button>
+      </div>
+    </form>
+  </details>
 </Layout>

@@ -3,7 +3,7 @@ import { pageUrl, postComment } from './api'
 import { collectContext } from './context'
 import { mountOverlay } from './overlay'
 
-export type { CommentType, Device } from './types'
+export type { Appareil, CommentType } from './types'
 
 export interface FrontNoteOptions {
   /** Identifiant du projet client (ex. 'coress') */
@@ -31,9 +31,9 @@ export function initFrontNote({ projectId, apiUrl }: FrontNoteOptions): void {
     mountOverlay((draft) =>
       postComment(apiUrl, {
         ...draft,
-        projectId,
+        projet: projectId,
         url: pageUrl(window.location.href),
-        context: collectContext(),
+        contexte: collectContext(),
       })
     )
 

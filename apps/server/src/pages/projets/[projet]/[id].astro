@@ -1,0 +1,413 @@
+---
+import Badge from '../../../components/Badge.astro'
+import Layout from '../../../layouts/Layout.astro'
+import { dateCourte, dateHeure, TON_GRAVITE, TON_STATUT } from '../../../lib/affichage'
+import {
+  getCorrection,
+  mettreAJour,
+  miseAJourAgenceSchema,
+  transitionsPossibles,
+} from '../../../lib/corrections'
+import { DomainError } from '../../../lib/errors'
+import { qualificationDepuisForm, statutDepuisForm } from '../../../lib/formulaires'
+import { getProjet } from '../../../lib/projets'
+import { getDb } from '../../../lib/runtime'
+import {
+  APPAREIL_LABELS,
+  APPAREILS,
+  GRAVITE_LABELS,
+  GRAVITES,
+  LIEU_LABELS,
+  LIEUX,
+  NATURE_LABELS,
+  STATUT_LABELS,
+} from '../../../lib/vocabulaire'
+
+const db = getDb()
+const projet = getProjet(db, Astro.params.projet ?? '')
+let correction = getCorrection(db, Astro.params.id ?? '')
+if (!projet || !correction || correction.projet !== projet.id) {
+  return new Response('Correction introuvable', { status: 404 })
+}
+
+let erreur = ''
+let enregistre = Astro.url.searchParams.has('ok')
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData()
+  const patch =
+    form.get('_action') === 'statut' ? statutDepuisForm(form) : qualificationDepuisForm(form)
+  const parsed = miseAJourAgenceSchema.safeParse(patch)
+  if (!parsed.success) {
+    erreur = parsed.error.issues.map((i) => `${i.path.join('.')} : ${i.message}`).join(' ; ')
+  } else {
+    try {
+      mettreAJour(db, correction.id, 'agence', parsed.data)
+      return Astro.redirect(`/projets/${projet.id}/${correction.id}?ok`)
+    } catch (err) {
+      if (!(err instanceof DomainError)) throw err
+      erreur = err.message
+      enregistre = false
+    }
+  }
+  correction = getCorrection(db, correction.id)!
+}
+
+const c = correction
+const revision = getProjet(db, projet.id)!.revision
+const passages = transitionsPossibles('agence', c.statut)
+const lienPage = c.url ? `${c.url}${c.url.includes('?') ? '&' : '?'}frontnote=${projet.id}` : null
+const t = c.traitement
+---
+
+<Layout title={`${c.id} · ${projet.nom}`} fil={[[projet.nom, `/projets/${projet.id}`], [c.id]]}>
+  <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <div class="flex flex-wrap items-center gap-3">
+        <h1 class="font-mono text-2xl font-bold">{c.id}</h1>
+        <Badge ton={TON_STATUT[c.statut]} label={STATUT_LABELS[c.statut]} />
+        {c.gravite && <Badge ton={TON_GRAVITE[c.gravite]} label={GRAVITE_LABELS[c.gravite]} />}
+      </div>
+      <p class="mt-1 text-sm text-muted">
+        Signalée le {dateCourte(c.date_signalement)} par {c.signale_par}
+        {c.auteur && <> ({c.auteur})</>} via {c.canal} · {APPAREIL_LABELS[c.appareil]}
+        {c.navigateur && <> · {c.navigateur}</>}
+      </p>
+    </div>
+    {lienPage && (
+      <a href={lienPage} target="_blank" class="bouton">
+        Voir sur la page
+      </a>
+    )}
+  </div>
+
+  {enregistre && !erreur && (
+    <p class="mb-4 rounded-md bg-ok-soft px-4 py-2 text-sm text-ok" role="status">
+      Enregistré.
+    </p>
+  )}
+  {erreur && (
+    <p class="mb-4 rounded-md bg-danger-soft px-4 py-2 text-sm text-danger" role="alert">
+      {erreur}
+    </p>
+  )}
+
+  <div class="grid gap-6 lg:grid-cols-[1fr_22rem]">
+    <div class="space-y-6">
+      <section class="carte space-y-4">
+        <h2 class="font-bold">Retour du client</h2>
+        <dl class="grid gap-3 text-sm sm:grid-cols-2">
+          <div>
+            <dt class="etiquette">Page</dt>
+            <dd class="font-mono break-all">{c.page}</dd>
+          </div>
+          <div>
+            <dt class="etiquette">Zone</dt>
+            <dd>{c.zone}</dd>
+          </div>
+          {c.type_client && (
+            <div>
+              <dt class="etiquette">Type choisi par le client</dt>
+              <dd>{c.type_client}</dd>
+            </div>
+          )}
+          {c.couleur && (
+            <div>
+              <dt class="etiquette">Couleur souhaitée</dt>
+              <dd class="flex items-center gap-2">
+                <span
+                  class="inline-block size-4 rounded border border-line"
+                  style={`background:${c.couleur}`}
+                ></span>
+                <span class="font-mono">{c.couleur}</span>
+              </dd>
+            </div>
+          )}
+        </dl>
+        {c.nature === 'texte' || c.texte_attendu ? (
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <p class="etiquette">Texte actuel</p>
+              <p class="rounded-md bg-paper p-3 text-sm whitespace-pre-wrap">
+                {c.texte_actuel || '(vide)'}
+              </p>
+            </div>
+            <div>
+              <p class="etiquette">Texte attendu, mot pour mot (non modifiable)</p>
+              <p class="rounded-md border border-ink bg-surface p-3 text-sm whitespace-pre-wrap">
+                {c.texte_attendu}
+              </p>
+            </div>
+          </div>
+        ) : null}
+        {c.selecteur && (
+          <p class="text-xs text-muted">
+            Sélecteur : <span class="font-mono break-all">{c.selecteur}</span>
+          </p>
+        )}
+      </section>
+
+      <section class="carte">
+        <h2 class="mb-4 font-bold">Qualification</h2>
+        <form method="post" class="grid gap-4 sm:grid-cols-2">
+          <input type="hidden" name="revision" value={revision} />
+          <label>
+            <span class="etiquette">Nature</span>
+            <select class="champ" name="nature">
+              <option value="">À qualifier</option>
+              {projet.natures.map((n) => (
+                <option value={n} selected={c.nature === n}>
+                  {NATURE_LABELS[n]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span class="etiquette">Gravité</span>
+            <select class="champ" name="gravite">
+              <option value="">·</option>
+              {GRAVITES.map((g) => (
+                <option value={g} selected={c.gravite === g}>
+                  {GRAVITE_LABELS[g]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span class="etiquette">Lieu de correction</span>
+            <select class="champ" name="lieu_correction">
+              <option value="">·</option>
+              {LIEUX.map((l) => (
+                <option value={l} selected={c.lieu_correction === l}>
+                  {LIEU_LABELS[l]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span class="etiquette">Lot</span>
+            <input class="champ" name="lot" value={c.lot ?? ''} placeholder="recette-2026-09-26" />
+          </label>
+          <label>
+            <span class="etiquette">Page</span>
+            <input class="champ font-mono" name="page" value={c.page} required />
+          </label>
+          <label>
+            <span class="etiquette">Appareil</span>
+            <select class="champ" name="appareil">
+              {APPAREILS.map((a) => (
+                <option value={a} selected={c.appareil === a}>
+                  {APPAREIL_LABELS[a]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label class="sm:col-span-2">
+            <span class="etiquette">Zone</span>
+            <input class="champ" name="zone" value={c.zone} required />
+          </label>
+          <label class="sm:col-span-2">
+            <span class="etiquette">État (appli : connecté, rôle, données)</span>
+            <input class="champ" name="etat" value={c.etat ?? ''} />
+          </label>
+          <label class="sm:col-span-2">
+            <span class="etiquette">Constat</span>
+            <textarea class="champ" name="constat" rows="2">{c.constat ?? ''}</textarea>
+          </label>
+          <label class="sm:col-span-2">
+            <span class="etiquette">Attendu</span>
+            <textarea class="champ" name="attendu" rows="2">{c.attendu ?? ''}</textarea>
+          </label>
+          <label>
+            <span class="etiquette">Source du texte (lien Google Doc)</span>
+            <input class="champ" type="url" name="source_lien" value={c.source_texte?.lien ?? ''} />
+          </label>
+          <label>
+            <span class="etiquette">Lu le</span>
+            <input
+              class="champ"
+              type="date"
+              name="source_lu_le"
+              value={c.source_texte?.lu_le ?? ''}
+            />
+          </label>
+          <label class="sm:col-span-2">
+            <span class="etiquette">Pièces jointes (un lien par ligne)</span>
+            <textarea
+              class="champ font-mono text-xs"
+              name="pieces_jointes"
+              rows="2"
+            >{c.pieces_jointes.join('\n')}</textarea>
+          </label>
+          <label>
+            <span class="etiquette">Test lié</span>
+            <input
+              class="champ font-mono"
+              name="test_lie"
+              value={c.test_lie ?? ''}
+              placeholder="LEG-04"
+            />
+          </label>
+          <label>
+            <span class="etiquette">Ligne de suivi</span>
+            <input
+              class="champ"
+              type="number"
+              min="1"
+              name="ligne_suivi"
+              value={c.ligne_suivi ?? ''}
+            />
+          </label>
+          <label class="sm:col-span-2">
+            <span class="etiquette">Note de l'agence</span>
+            <textarea class="champ" name="note" rows="2">{c.note ?? ''}</textarea>
+          </label>
+          <div class="flex flex-wrap gap-2 sm:col-span-2">
+            <button class="bouton">Enregistrer</button>
+            {passages.includes('a_traiter') && (
+              <button class="bouton-principal" name="statut" value="a_traiter">
+                Enregistrer et passer « À traiter »
+              </button>
+            )}
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <aside class="space-y-6">
+      {passages.length > 0 && (
+        <section class="carte">
+          <h2 class="mb-3 font-bold">Changer le statut</h2>
+          <form method="post" class="space-y-3">
+            <input type="hidden" name="_action" value="statut" />
+            <input type="hidden" name="revision" value={revision} />
+            <select class="champ" name="statut" required>
+              {passages.map((s) => (
+                <option value={s}>{STATUT_LABELS[s]}</option>
+              ))}
+            </select>
+            <textarea
+              class="champ"
+              name="historique_note"
+              rows="2"
+              placeholder="Note (raison d'un refus, d'un doublon…)"
+            ></textarea>
+            <button class="bouton w-full">Appliquer</button>
+          </form>
+        </section>
+      )}
+
+      <section class="carte space-y-3 text-sm">
+        <h2 class="font-bold">Retour de l'agent</h2>
+        {t || c.question || c.signalement ? (
+          <dl class="space-y-3">
+            {c.question && (
+              <div>
+                <dt class="etiquette">Question pour le client</dt>
+                <dd class="rounded-md bg-warn-soft p-2">{c.question}</dd>
+              </div>
+            )}
+            {t?.resume && (
+              <div>
+                <dt class="etiquette">Résumé</dt>
+                <dd>{t.resume}</dd>
+              </div>
+            )}
+            {t?.verification && (
+              <div>
+                <dt class="etiquette">Vérification</dt>
+                <dd>{t.verification}</dd>
+              </div>
+            )}
+            {t?.branche && (
+              <div>
+                <dt class="etiquette">Branche</dt>
+                <dd class="font-mono break-all">{t.branche}</dd>
+              </div>
+            )}
+            {t?.pr && (
+              <div>
+                <dt class="etiquette">PR</dt>
+                <dd class="font-mono">#{t.pr}</dd>
+              </div>
+            )}
+            {t?.commits?.length ? (
+              <div>
+                <dt class="etiquette">Commits</dt>
+                <dd class="font-mono">{t.commits.join(', ')}</dd>
+              </div>
+            ) : null}
+            {t?.date && (
+              <div>
+                <dt class="etiquette">Corrigée le</dt>
+                <dd>{dateCourte(t.date)}</dd>
+              </div>
+            )}
+            {c.signalement && (
+              <div>
+                <dt class="etiquette">Signalement (texte du client)</dt>
+                <dd>{c.signalement}</dd>
+              </div>
+            )}
+          </dl>
+        ) : (
+          <p class="text-muted">Rien pour l'instant.</p>
+        )}
+      </section>
+
+      <section class="carte text-sm">
+        <h2 class="mb-3 font-bold">Historique</h2>
+        <ol class="space-y-3 border-l border-line pl-4">
+          {c.historique.map((h) => (
+            <li>
+              <p>
+                <span class="font-semibold">
+                  {h.de ? `${STATUT_LABELS[h.de]} → ` : ''}
+                  {STATUT_LABELS[h.vers]}
+                </span>
+                <span class="text-muted"> · {h.auteur}</span>
+              </p>
+              <p class="text-xs text-muted">{dateHeure(h.date)}</p>
+              {h.note && <p class="mt-1">{h.note}</p>}
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {c.contexte && (
+        <details class="carte text-sm">
+          <summary class="cursor-pointer font-bold">Contexte technique</summary>
+          <dl class="mt-3 space-y-2">
+            <div>
+              <dt class="etiquette">Fenêtre</dt>
+              <dd>
+                {c.contexte.viewport.width} × {c.contexte.viewport.height} px
+              </dd>
+            </div>
+            <div>
+              <dt class="etiquette">Écran</dt>
+              <dd>
+                {c.contexte.screen.width} × {c.contexte.screen.height} px, densité{' '}
+                {c.contexte.pixelRatio}
+              </dd>
+            </div>
+            <div>
+              <dt class="etiquette">Tactile</dt>
+              <dd>{c.contexte.touch ? 'oui' : 'non'}</dd>
+            </div>
+            {c.contexte.language && (
+              <div>
+                <dt class="etiquette">Langue</dt>
+                <dd>{c.contexte.language}</dd>
+              </div>
+            )}
+            <div>
+              <dt class="etiquette">Navigateur (brut)</dt>
+              <dd class="font-mono text-xs break-all">{c.contexte.userAgent}</dd>
+            </div>
+          </dl>
+        </details>
+      )}
+    </aside>
+  </div>
+</Layout>

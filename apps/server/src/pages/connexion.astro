@@ -1,0 +1,44 @@
+---
+import Layout from '../layouts/Layout.astro'
+import { isAuthorized, SESSION_COOKIE, valeurSession } from '../lib/auth'
+import { clientIp } from '../lib/http'
+import { limiteConnexion } from '../lib/limites'
+import { dashboardToken } from '../lib/runtime'
+
+let erreur = ''
+
+if (Astro.request.method === 'POST') {
+  if (!limiteConnexion(clientIp(Astro.request, Astro.clientAddress))) {
+    erreur = 'Trop de tentatives, réessayez dans quelques minutes.'
+  } else {
+    const jeton = String((await Astro.request.formData()).get('jeton') ?? '')
+    if (dashboardToken && isAuthorized(`Bearer ${jeton}`, dashboardToken)) {
+      Astro.cookies.set(SESSION_COOKIE, valeurSession(dashboardToken), {
+        httpOnly: true,
+        secure: import.meta.env.PROD,
+        sameSite: 'strict',
+        path: '/',
+        maxAge: 30 * 24 * 3600,
+      })
+      return Astro.redirect('/')
+    }
+    erreur = dashboardToken ? 'Jeton incorrect.' : 'DASHBOARD_TOKEN non configuré sur le serveur.'
+  }
+}
+---
+
+<Layout title="Connexion">
+  <form method="post" class="carte mx-auto mt-16 max-w-sm space-y-4">
+    <h1 class="text-lg font-bold">Connexion</h1>
+    <label class="block">
+      <span class="etiquette">Jeton agence</span>
+      <input class="champ" type="password" name="jeton" required autocomplete="current-password" />
+    </label>
+    {erreur && (
+      <p class="text-sm text-danger" role="alert">
+        {erreur}
+      </p>
+    )}
+    <button class="bouton-principal w-full">Se connecter</button>
+  </form>
+</Layout>

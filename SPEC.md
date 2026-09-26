@@ -63,6 +63,27 @@ Package = juste le widget (overlay + appels API). API/dashboard restent un servi
 
 - **Recette** (ajout 2026-09-26) : type `bug` ; **écran concerné** choisi par le client (`desktop` · `mobile`, présélectionné selon son appareil) — remplace la priorité, abandonnée le 2026-09-26 ; **contexte technique** relevé automatiquement avec chaque retour (navigateur/UA, langue, taille fenêtre et écran, densité, tactile). Écartés pour l'instant : checklist de recette par projet, validation client finale.
 
+## Contrat de corrections
+
+Le modèle de données, les statuts et la vue agent suivent le contrat
+`/Users/martinlaetitia/Documents/011-KAWANAH-STUDIO/Contrat-corrections-agents.md`
+(v2, 2026-09-26). Réponses au § 9 :
+
+1. **Source** : l'appli (base centrale). Export filtré au format du § 6, mise à jour de l'agent limitée aux champs du § 5. Aucune copie JSON dans le dépôt des sites.
+2. **Auth agent** : un jeton par projet dans le `.env` du site, stocké haché côté FrontNote. Droits limités aux statuts de l'agent, jamais `validee`. Contrôle de `revision` (409 si périmée).
+3. **Préfixe** : réglé par projet (`REC-` par défaut), compteur qui ne recule jamais. CoReSS démarrera à `REC-012`.
+4. **Existant CoReSS** : pas d'import pour l'instant, à décider au moment d'installer sur CoReSS.
+
+Le dashboard est la source unique : l'agence y qualifie, l'agent de code lit la vue agent du même dashboard et y écrit ses retours.
+
+## Feuille de route (2026-09-26)
+
+1. Restructurer la base selon le contrat + **dashboard** avec vue agent (en local).
+2. Mise en ligne de FrontNote sur un sous-domaine O2switch (le serveur distribue aussi `frontnote.js`).
+3. **Test d'implantation en ligne sur le site Kawanah Studio** (projet `kawanah`) : retours depuis ordi et mobile, lecture par l'agent de code.
+4. Notification email Brevo.
+5. Installation sur **CoReSS** (en recette), quand l'utilisatrice le décide.
+
 ## Reste à trancher
 
 - Nom package (`@kawanah/frontnote` ? — retenu provisoirement)

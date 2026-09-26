@@ -12,9 +12,18 @@ function clickPage(el: Element) {
   el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }))
 }
 
+function ouvrir(submit = vi.fn().mockResolvedValue(undefined)) {
+  mount(submit)
+  $<HTMLButtonElement>('.toolbar').click()
+  clickPage(document.getElementById('lien') as Element)
+  return submit
+}
+
+const envoyer = () => $<HTMLFormElement>('.panel').requestSubmit()
+
 beforeEach(() => {
   document.head.innerHTML = ''
-  document.body.innerHTML = '<main><a href="/ailleurs" id="lien">Lien</a></main>'
+  document.body.innerHTML = '<main><a href="/ailleurs" id="lien">Réserver   maintenant</a></main>'
 })
 
 afterEach(() => destroy())
@@ -48,29 +57,75 @@ describe('mountOverlay', () => {
     expect($('.panel')).toBeNull()
   })
 
-  it('envoie le retour avec sélecteur, type et couleur', async () => {
-    const submit = vi.fn().mockResolvedValue(undefined)
-    mount(submit)
-    $<HTMLButtonElement>('.toolbar').click()
-    clickPage(document.getElementById('lien') as Element)
+  it('type texte : relève le texte actuel et garde le nouveau mot pour mot', async () => {
+    const submit = ouvrir()
+    expect($('[data-current]').textContent).toBe('Réserver maintenant')
 
-    $<HTMLInputElement>('input[value=couleur]').click()
-    const swatch = $<HTMLInputElement>('[name=color]')
-    swatch.value = '#e8590c'
-    swatch.dispatchEvent(new Event('input'))
-    $<HTMLTextAreaElement>('textarea').value = '  plus foncé  '
-    $<HTMLFormElement>('.panel').requestSubmit()
+    const nouveau = '  Réserver  « maintenant » ! '
+    $<HTMLTextAreaElement>('[name=texte_attendu]').value = nouveau
+    envoyer()
     await vi.waitFor(() => expect(submit).toHaveBeenCalled())
 
     expect(submit.mock.calls[0]![0]).toMatchObject({
-      selector: '#lien',
-      type: 'couleur',
-      device: 'desktop',
-      color: '#e8590c',
-      message: 'plus foncé',
+      selecteur: '#lien',
+      type: 'texte',
+      appareil: 'ordinateur',
+      zone: 'lien « Réserver maintenant »',
+      texte_actuel: 'Réserver maintenant',
+      texte_attendu: nouveau,
     })
     await vi.waitFor(() => expect($('.panel')).toBeNull())
     expect($('.pin:not(.draft)')).not.toBeNull()
+  })
+
+  it('type couleur : constat, attendu, couleur et écran choisis', async () => {
+    const submit = ouvrir()
+    $<HTMLInputElement>('input[value=couleur]').click()
+    $<HTMLInputElement>('input[value=tous]').click()
+    const swatch = $<HTMLInputElement>('[name=couleur]')
+    swatch.value = '#e8590c'
+    swatch.dispatchEvent(new Event('input'))
+    $<HTMLTextAreaElement>('[name=constat]').value = '  trop clair  '
+    $<HTMLTextAreaElement>('[name=attendu]').value = 'plus foncé'
+    envoyer()
+    await vi.waitFor(() => expect(submit).toHaveBeenCalled())
+
+    const draft = submit.mock.calls[0]![0]
+    expect(draft).toMatchObject({
+      type: 'couleur',
+      appareil: 'tous',
+      couleur: '#e8590c',
+      constat: 'trop clair',
+      attendu: 'plus foncé',
+    })
+    expect(draft.texte_attendu).toBeUndefined()
+  })
+
+  it("n'envoie pas de couleur si le client n'en a pas choisi", async () => {
+    const submit = ouvrir()
+    $<HTMLInputElement>('input[value=couleur]').click()
+    $<HTMLTextAreaElement>('[name=constat]').value = 'à revoir'
+    envoyer()
+    await vi.waitFor(() => expect(submit).toHaveBeenCalled())
+    expect(submit.mock.calls[0]![0].couleur).toBeUndefined()
+  })
+
+  it('refuse un envoi incomplet sans appeler l’API', () => {
+    const submit = ouvrir(vi.fn())
+    envoyer() // type texte sans nouveau texte
+    expect($<HTMLElement>('.error').hidden).toBe(false)
+
+    $<HTMLInputElement>('input[value=bug]').click()
+    envoyer() // bug sans constat
+    expect(submit).not.toHaveBeenCalled()
+  })
+
+  it('affiche l’erreur de l’API et garde le formulaire', async () => {
+    ouvrir(vi.fn().mockRejectedValue(new Error('Connexion impossible')))
+    $<HTMLTextAreaElement>('[name=texte_attendu]').value = 'texte'
+    envoyer()
+    await vi.waitFor(() => expect($('.error').textContent).toBe('Connexion impossible'))
+    expect($('.panel')).not.toBeNull()
   })
 
   it('se retire proprement', () => {
@@ -79,50 +134,5 @@ describe('mountOverlay', () => {
     destroy()
     expect(document.querySelector('frontnote-root')).toBeNull()
     expect(document.documentElement.classList.contains('frontnote-picking')).toBe(false)
-  })
-
-  it("n'envoie pas de couleur si le client n'en a pas choisi", async () => {
-    const submit = vi.fn().mockResolvedValue(undefined)
-    mount(submit)
-    $<HTMLButtonElement>('.toolbar').click()
-    clickPage(document.getElementById('lien') as Element)
-    $<HTMLInputElement>('input[value=couleur]').click()
-    $<HTMLTextAreaElement>('textarea').value = 'à revoir'
-    $<HTMLFormElement>('.panel').requestSubmit()
-    await vi.waitFor(() => expect(submit).toHaveBeenCalled())
-    expect(submit.mock.calls[0]![0].color).toBeUndefined()
-  })
-
-  it("envoie l'écran choisi", async () => {
-    const submit = vi.fn().mockResolvedValue(undefined)
-    mount(submit)
-    $<HTMLButtonElement>('.toolbar').click()
-    clickPage(document.getElementById('lien') as Element)
-    $<HTMLInputElement>('input[value=bug]').click()
-    $<HTMLInputElement>('input[value=mobile]').click()
-    $<HTMLTextAreaElement>('textarea').value = 'le formulaire ne part pas'
-    $<HTMLFormElement>('.panel').requestSubmit()
-    await vi.waitFor(() => expect(submit).toHaveBeenCalled())
-    expect(submit.mock.calls[0]![0]).toMatchObject({ type: 'bug', device: 'mobile' })
-  })
-
-  it('refuse un message vide sans appeler l’API', () => {
-    const submit = vi.fn()
-    mount(submit)
-    $<HTMLButtonElement>('.toolbar').click()
-    clickPage(document.getElementById('lien') as Element)
-    $<HTMLFormElement>('.panel').requestSubmit()
-    expect(submit).not.toHaveBeenCalled()
-    expect($<HTMLElement>('.error').hidden).toBe(false)
-  })
-
-  it('affiche l’erreur de l’API et garde le formulaire', async () => {
-    mount(vi.fn().mockRejectedValue(new Error('Connexion impossible')))
-    $<HTMLButtonElement>('.toolbar').click()
-    clickPage(document.getElementById('lien') as Element)
-    $<HTMLTextAreaElement>('textarea').value = 'texte'
-    $<HTMLFormElement>('.panel').requestSubmit()
-    await vi.waitFor(() => expect($('.error').textContent).toBe('Connexion impossible'))
-    expect($('.panel')).not.toBeNull()
   })
 })

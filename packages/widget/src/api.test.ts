@@ -2,14 +2,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { pageUrl, postComment, type CommentPayload } from './api'
 
 const payload: CommentPayload = {
-  projectId: 'coress',
+  projet: 'coress',
   url: 'https://coress.fr/',
-  selector: 'h1',
+  selecteur: 'h1',
   x: 0.5,
   y: 0.5,
   type: 'texte',
-  device: 'desktop',
-  message: 'corriger le titre',
+  appareil: 'ordinateur',
+  zone: 'titre « Accueil »',
+  texte_attendu: 'Nouveau titre',
 }
 
 afterEach(() => vi.unstubAllGlobals())
@@ -23,12 +24,12 @@ describe('pageUrl', () => {
 })
 
 describe('postComment', () => {
-  it('envoie en POST JSON vers /api/comments', async () => {
+  it('envoie en POST JSON vers /api/corrections', async () => {
     const fetch = vi.fn().mockResolvedValue(new Response('{}', { status: 201 }))
     vi.stubGlobal('fetch', fetch)
     await postComment('https://api.test/', payload)
     expect(fetch).toHaveBeenCalledWith(
-      'https://api.test/api/comments',
+      'https://api.test/api/corrections',
       expect.objectContaining({ method: 'POST', body: JSON.stringify(payload) })
     )
   })

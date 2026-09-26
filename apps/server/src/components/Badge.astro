@@ -1,0 +1,29 @@
+---
+import type { Ton } from '../lib/affichage'
+
+interface Props {
+  ton: Ton
+  label: string
+}
+
+const { ton, label } = Astro.props
+
+const CLASSES: Record<Ton, string> = {
+  accent: 'bg-accent-soft text-accent',
+  info: 'bg-info-soft text-info',
+  warn: 'bg-warn-soft text-warn',
+  ok: 'bg-ok-soft text-ok',
+  'ok-plein': 'bg-ok text-white',
+  danger: 'bg-danger-soft text-danger',
+  neutre: 'bg-line text-muted',
+}
+---
+
+<span
+  class:list={[
+    'inline-block rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap',
+    CLASSES[ton],
+  ]}
+>
+  {label}
+</span>
