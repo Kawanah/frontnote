@@ -55,4 +55,5 @@ jobs:
 
       - name: Secrets FTP absents
         if: env.FTP_SERVER == ''
-        run: echo "::warning::Secrets FTP non configurés : compilation et tests OK, rien n'a été envoyé."
+        run: |
+          echo "::warning::Secrets FTP non configurés, compilation et tests OK, rien n'a été envoyé."
