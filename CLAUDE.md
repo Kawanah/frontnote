@@ -22,6 +22,7 @@ apps/server/       Astro 7 standalone — routes API + dashboard, un seul déplo
 - `bun run test` — Vitest ; test ciblé : `bunx vitest run packages/widget/src/activation.test.ts`
 - `bun run lint` / `bun run format`
 - Vérif types : `bunx tsc -p packages/widget` · `cd apps/server && bunx astro check`
+- Démo widget : `.claude/launch.json` → `server` (port 4400) + `demo` (port 5173, sert `packages/widget`) ; ouvrir `http://localhost:5173/demo/?frontnote=demo` après `bun run build`. Le 4321 est souvent pris par d'autres projets Astro
 - Lancer le build serveur : `cd apps/server && PORT=4321 node dist/server/entry.mjs`
 
 TypeScript épinglé en `~6.0` : `@typescript-eslint` ne supporte pas TS 7. tsup a besoin de `ignoreDeprecations: '6.0'` pour le build des types.
@@ -49,6 +50,8 @@ Contrainte à ne pas casser : **l'API et le dashboard ne sont jamais dupliqués 
 import { initFrontNote } from '@kawanah/frontnote'
 initFrontNote({ projectId: 'coress', apiUrl: 'https://<api>' })
 ```
+
+Widget (`packages/widget/src/`) : `overlay.ts` = UI dans un Shadow DOM (bouton, surlignage, pins, formulaire), écouteurs en phase de capture sur `window` qui neutralisent les clics du site pendant le mode commentaire ; `mountOverlay` renvoie une fonction de nettoyage. `selector.ts` = sélecteur sans classes (#id simple sinon `tag:nth-of-type`). Les types de retour sont dupliqués dans `types.ts` et `apps/server/src/lib/comments.ts` : les garder synchronisés. Pins affichés = ceux envoyés pendant la visite uniquement.
 
 Activation : widget inactif par défaut, activé par le lien `?frontnote=<projectId>` et mémorisé en `localStorage` ; `?frontnote=off` désactive (`packages/widget/src/activation.ts`).
 

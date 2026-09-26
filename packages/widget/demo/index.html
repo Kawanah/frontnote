@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Démo FrontNote</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Georgia, serif;
+        color: #222;
+        background: #f6f3ee;
+      }
+      header {
+        position: sticky;
+        top: 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 32px;
+        background: #fff;
+        box-shadow: 0 1px 0 #ddd;
+      }
+      nav a {
+        margin-left: 20px;
+        color: #2b5d4f;
+      }
+      .hero {
+        height: 360px;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(135deg, #2b5d4f, #8fb3a0);
+        color: #fff;
+        font-size: 42px;
+      }
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 48px 24px;
+      }
+      .cta {
+        display: inline-block;
+        padding: 12px 22px;
+        border-radius: 6px;
+        background: #c2410c;
+        color: #fff;
+        text-decoration: none;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-top: 32px;
+      }
+      .card {
+        padding: 20px;
+        background: #fff;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>Gîte des Pins</strong>
+      <nav><a href="#chambres">Chambres</a><a href="#contact">Contact</a></nav>
+    </header>
+    <section class="hero">Bienvenue au Gîte des Pins</section>
+    <main>
+      <h1>Un séjour au calme</h1>
+      <p>Au cœur de la forêt landaise, notre gîte accueille jusqu'à 8 personnes.</p>
+      <a class="cta" href="https://example.com">Réserver maintenant</a>
+      <div class="cards" id="chambres">
+        <div class="card">
+          <h2>Chambre Océan</h2>
+          <p>Vue sur les pins, lit double.</p>
+        </div>
+        <div class="card">
+          <h2>Chambre Dune</h2>
+          <p>Deux lits simples, salle d'eau.</p>
+        </div>
+        <div class="card">
+          <h2>Suite Forêt</h2>
+          <p>Terrasse privée.</p>
+        </div>
+      </div>
+      <p id="contact" style="margin-top: 400px">Contact : bonjour@exemple.fr</p>
+    </main>
+    <!-- Ouvrir avec ?frontnote=demo pour activer le widget -->
+    <script
+      src="../dist/frontnote.js"
+      data-project="demo"
+      data-api="http://localhost:4400"
+    ></script>
+  </body>
+</html>
