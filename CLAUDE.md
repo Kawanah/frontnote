@@ -31,7 +31,12 @@ TypeScript épinglé en `~6.0` : `@typescript-eslint` ne supporte pas TS 7. tsup
 Trois briques **découplées**, c'est le point structurant du projet :
 
 1. **Widget** (`@kawanah/frontnote`) — JS vanilla, zéro dépendance framework. Doit marcher identiquement sur Astro, Next, WordPress. Overlay via `pointer-events`, positionnement via `getBoundingClientRect`. C'est la **seule** brique publiée en npm / CDN.
-2. **API centrale** — routes API Astro (`apps/server/src/pages/api/`). Endpoints : `POST /comments`, `GET /comments?project=`, `PATCH /comments/:id`. Hébergée **une seule fois**, sert tous les sites clients.
+2. **API centrale** — routes API Astro (`apps/server/src/pages/api/`), hébergée **une seule fois**, sert tous les sites clients :
+   - `POST /api/comments` — public (widget) : CORS `*`, rate limit 30/10 min/IP, validation Zod, honeypot `_honey` (faux 201 si rempli)
+   - `GET /api/comments?project=&status=` — token requis
+   - `PATCH /api/comments/:id` `{ status }` — token requis
+   - Auth : `Authorization: Bearer <DASHBOARD_TOKEN>` ; token absent → tout refusé
+   - Logique métier dans `src/lib/` (testable sans serveur) ; seul `src/lib/runtime.ts` lit `astro:env`
 3. **Dashboard** — pages Astro de `apps/server`, vue multi-projets, filtrage par site et par type, marquage résolu.
 
 Contrainte à ne pas casser : **l'API et le dashboard ne sont jamais dupliqués par projet client**. Seul le widget s'installe côté client :
@@ -49,11 +54,11 @@ Activation : widget inactif par défaut, activé par le lien `?frontnote=<projec
 
 ## Modèle de données
 
-Un commentaire porte : `projectId`, `url` de la page, sélecteur CSS + coordonnées `x`/`y` de l'élément, `type` (`texte` · `couleur` · `photo` · `mise-en-page` · `autre`), `message`, valeur couleur optionnelle, auteur, statut (ouvert/résolu), timestamp.
+Table SQLite `comments` (schéma dans `apps/server/src/lib/db.ts`, créé au démarrage). Un commentaire porte : `projectId`, `url` de la page, sélecteur CSS + `x`/`y` = position du clic **dans l'élément**, en fraction de sa taille (0 à 1), `type` (`texte` · `couleur` · `photo` · `mise-en-page` · `autre`), `message`, valeur couleur optionnelle, auteur, statut (ouvert/résolu), timestamp.
 
 ## Décisions déjà tranchées (ne pas re-litiger)
 
-- **DB : SQLite.** Pas de service externe.
+- **DB : SQLite via `better-sqlite3`.** Pas de service externe. Module compilé : valider l'install au premier déploiement O2switch.
 - **Pas de Supabase.** L'outil est transverse, sa DB lui appartient et n'est liée à aucun client.
 - **Notifications : Brevo en `fetch` natif**, pas de SDK.
 - **Auth dashboard : simple** (utilisatrice unique) — token unique (`DASHBOARD_TOKEN`). Ne pas sur-concevoir.
@@ -68,7 +73,7 @@ Un commentaire porte : `projectId`, `url` de la page, sélecteur CSS + coordonn�
 
 - Nom final du package (`@kawanah/frontnote` retenu provisoirement)
 - Sous-domaine exact de l'API centrale
-- Lib SQLite : `node:sqlite` (natif Node, encore expérimental) ou `better-sqlite3` (module compilé, à valider sur O2switch)
+- Lecture des pins par le widget (afficher au client ses commentaires existants) : nécessite une lecture publique par projet, à cadrer
 
 ## Règles
 
