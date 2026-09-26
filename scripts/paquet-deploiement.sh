@@ -1,22 +1,22 @@
 #!/bin/sh
-# Fabrique deploy/frontnote.zip : ce qu'il faut déposer sur O2switch
-# (dist/ + package.json + package-lock.json). À lancer après « bun run build ».
+# Prépare deploy/frontnote/ : exactement ce qui part sur O2switch (apps/frontnote/).
+# dist/ + package.json + package-lock.json + tmp/restart.txt
+# À lancer après « bun run build » (bun run paquet fait les deux).
 set -e
 racine="$(cd "$(dirname "$0")/.." && pwd)"
 serveur="$racine/apps/server"
-sortie="$racine/deploy"
-travail="$(mktemp -d)"
+sortie="$racine/deploy/frontnote"
 
 test -f "$serveur/dist/server/entry.mjs" || { echo "Build absent : lancer bun run build"; exit 1; }
 test -f "$serveur/dist/client/frontnote.js" || { echo "frontnote.js absent du build"; exit 1; }
 
-cp -R "$serveur/dist" "$travail/dist"
-cp "$serveur/package.json" "$travail/package.json"
-# Verrouille les versions installées par npm sur O2switch
-(cd "$travail" && npm install --package-lock-only --omit=dev --ignore-scripts --silent)
+rm -rf "$sortie"
+mkdir -p "$sortie/tmp"
+cp -R "$serveur/dist" "$sortie/dist"
+cp "$serveur/package.json" "$sortie/package.json"
+# Verrouille les versions que « Run NPM Install » installera sur O2switch
+(cd "$sortie" && npm install --package-lock-only --omit=dev --ignore-scripts --silent)
+# O2switch (Passenger) redémarre l'appli quand ce fichier change
+date -u +%Y-%m-%dT%H:%M:%SZ > "$sortie/tmp/restart.txt"
 
-mkdir -p "$sortie"
-rm -f "$sortie/frontnote.zip"
-(cd "$travail" && zip -qr "$sortie/frontnote.zip" dist package.json package-lock.json)
-rm -rf "$travail"
-echo "Paquet prêt : deploy/frontnote.zip ($(du -h "$sortie/frontnote.zip" | cut -f1))"
+echo "Paquet prêt : deploy/frontnote/"

@@ -26,6 +26,13 @@ apps/server/       Astro 7 standalone — routes API + dashboard, un seul déplo
 - Lancer le build serveur : `cd apps/server && PORT=4321 node dist/server/entry.mjs`
 - Dev : `apps/server/.env` (non versionné) doit contenir `DASHBOARD_TOKEN` pour se connecter au dashboard
 
+## Déploiement (O2switch, https://frontnote.kawanah.com)
+
+- Dépôt `Kawanah/frontnote` (privé). **Un push sur `main` met en ligne** via `.github/workflows/deploy.yml` : tests + lint, `bun run paquet` (→ `deploy/frontnote/`), envoi FTPS dans `apps/frontnote/`, redémarrage par `tmp/restart.txt` (Passenger). Sans secrets FTP, rien n'est envoyé.
+- Secrets GitHub : `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD` uniquement. `DASHBOARD_TOKEN` et `NODE_ENV=production` vivent dans les variables du Node.js Selector (lues au démarrage, pas au build).
+- Nouvelle dépendance serveur → cliquer « Run NPM Install » dans le Node.js Selector après le déploiement.
+- La base (`apps/frontnote/data/`) n'est jamais touchée par le déploiement.
+
 TypeScript épinglé en `~6.0` : `@typescript-eslint` ne supporte pas TS 7. tsup a besoin de `ignoreDeprecations: '6.0'` pour le build des types.
 
 ## Architecture
