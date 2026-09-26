@@ -8,6 +8,7 @@ const payload: CommentPayload = {
   x: 0.5,
   y: 0.5,
   type: 'texte',
+  priority: 'a-corriger',
   message: 'corriger le titre',
 }
 

@@ -61,6 +61,8 @@ Package = juste le widget (overlay + appels API). API/dashboard restent un servi
 - **Photo** : pas d'upload par le client en V1, il décrit seulement ce qu'il veut.
 - **Activation** : lien spécial `?frontnote=<projectId>`. Le script est présent mais invisible ; le lien active le widget et le mémorise dans le navigateur du client (`localStorage`). `?frontnote=off` désactive. Marche en préprod comme en prod, sans compte.
 
+- **Recette** (ajout 2026-09-26) : type `bug` en plus des autres ; **priorité** choisie par le client (`bloquant` · `a-corriger` par défaut · `suggestion`), modifiable depuis le dashboard ; **contexte technique** relevé automatiquement avec chaque retour (navigateur/UA, langue, taille fenêtre et écran, densité, tactile). Écartés pour l'instant : checklist de recette par projet, validation client finale.
+
 ## Reste à trancher
 
 - Nom package (`@kawanah/frontnote` ? — retenu provisoirement)

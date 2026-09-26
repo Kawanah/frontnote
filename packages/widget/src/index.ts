@@ -1,8 +1,9 @@
 import { resolveActivation } from './activation'
 import { pageUrl, postComment } from './api'
+import { collectContext } from './context'
 import { mountOverlay } from './overlay'
 
-export type { CommentType } from './types'
+export type { CommentType, Priority } from './types'
 
 export interface FrontNoteOptions {
   /** Identifiant du projet client (ex. 'coress') */
@@ -28,7 +29,12 @@ export function initFrontNote({ projectId, apiUrl }: FrontNoteOptions): void {
 
   const start = () =>
     mountOverlay((draft) =>
-      postComment(apiUrl, { ...draft, projectId, url: pageUrl(window.location.href) })
+      postComment(apiUrl, {
+        ...draft,
+        projectId,
+        url: pageUrl(window.location.href),
+        context: collectContext(),
+      })
     )
 
   if (document.readyState === 'loading') {

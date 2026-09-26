@@ -1,8 +1,10 @@
+import type { TechContext } from './context'
 import type { Draft } from './types'
 
 export interface CommentPayload extends Draft {
   projectId: string
   url: string
+  context?: TechContext
 }
 
 // URL de la page sans le paramètre d'activation

@@ -1,6 +1,15 @@
 import { getClickPosition, getSelector, type Position } from './selector'
 import { PAGE_STYLES, STYLES } from './styles'
-import { COMMENT_TYPES, TYPE_LABELS, type CommentType, type Draft } from './types'
+import {
+  COMMENT_TYPES,
+  DEFAULT_PRIORITY,
+  PRIORITIES,
+  PRIORITY_LABELS,
+  TYPE_LABELS,
+  type CommentType,
+  type Draft,
+  type Priority,
+} from './types'
 
 const AUTHOR_KEY = 'frontnote:author'
 const PICKING_CLASS = 'frontnote-picking'
@@ -18,6 +27,17 @@ const PANEL_HTML = `
       (type, i) => `<label class="type">
         <input type="radio" name="type" value="${type}"${i === 0 ? ' checked' : ''}>
         <span>${TYPE_LABELS[type]}</span>
+      </label>`
+    ).join('')}
+  </fieldset>
+  <fieldset class="types">
+    <legend>Priorité</legend>
+    ${PRIORITIES.map(
+      (priority) => `<label class="type">
+        <input type="radio" name="priority" value="${priority}"${
+          priority === DEFAULT_PRIORITY ? ' checked' : ''
+        }>
+        <span>${PRIORITY_LABELS[priority]}</span>
       </label>`
     ).join('')}
   </fieldset>
@@ -265,6 +285,7 @@ export function mountOverlay(submit: (draft: Draft) => Promise<void>): () => voi
           selector,
           ...position,
           type,
+          priority: data.get('priority') as Priority,
           message: text,
           color: type === 'couleur' && colorChosen ? swatch.value : undefined,
           author: name || undefined,
