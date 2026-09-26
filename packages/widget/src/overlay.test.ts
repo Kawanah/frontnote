@@ -65,7 +65,7 @@ describe('mountOverlay', () => {
     expect(submit.mock.calls[0]![0]).toMatchObject({
       selector: '#lien',
       type: 'couleur',
-      priority: 'a-corriger',
+      device: 'desktop',
       color: '#e8590c',
       message: 'plus foncé',
     })
@@ -93,17 +93,17 @@ describe('mountOverlay', () => {
     expect(submit.mock.calls[0]![0].color).toBeUndefined()
   })
 
-  it('envoie la priorité choisie', async () => {
+  it("envoie l'écran choisi", async () => {
     const submit = vi.fn().mockResolvedValue(undefined)
     mount(submit)
     $<HTMLButtonElement>('.toolbar').click()
     clickPage(document.getElementById('lien') as Element)
     $<HTMLInputElement>('input[value=bug]').click()
-    $<HTMLInputElement>('input[value=bloquant]').click()
+    $<HTMLInputElement>('input[value=mobile]').click()
     $<HTMLTextAreaElement>('textarea').value = 'le formulaire ne part pas'
     $<HTMLFormElement>('.panel').requestSubmit()
     await vi.waitFor(() => expect(submit).toHaveBeenCalled())
-    expect(submit.mock.calls[0]![0]).toMatchObject({ type: 'bug', priority: 'bloquant' })
+    expect(submit.mock.calls[0]![0]).toMatchObject({ type: 'bug', device: 'mobile' })
   })
 
   it('refuse un message vide sans appeler l’API', () => {

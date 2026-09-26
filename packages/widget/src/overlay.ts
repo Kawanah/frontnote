@@ -2,13 +2,13 @@ import { getClickPosition, getSelector, type Position } from './selector'
 import { PAGE_STYLES, STYLES } from './styles'
 import {
   COMMENT_TYPES,
-  DEFAULT_PRIORITY,
-  PRIORITIES,
-  PRIORITY_LABELS,
+  DEVICE_LABELS,
+  DEVICES,
   TYPE_LABELS,
+  currentDevice,
   type CommentType,
+  type Device,
   type Draft,
-  type Priority,
 } from './types'
 
 const AUTHOR_KEY = 'frontnote:author'
@@ -31,13 +31,11 @@ const PANEL_HTML = `
     ).join('')}
   </fieldset>
   <fieldset class="types">
-    <legend>Priorité</legend>
-    ${PRIORITIES.map(
-      (priority) => `<label class="type">
-        <input type="radio" name="priority" value="${priority}"${
-          priority === DEFAULT_PRIORITY ? ' checked' : ''
-        }>
-        <span>${PRIORITY_LABELS[priority]}</span>
+    <legend>Écran concerné</legend>
+    ${DEVICES.map(
+      (device) => `<label class="type">
+        <input type="radio" name="device" value="${device}">
+        <span>${DEVICE_LABELS[device]}</span>
       </label>`
     ).join('')}
   </fieldset>
@@ -257,6 +255,7 @@ export function mountOverlay(submit: (draft: Draft) => Promise<void>): () => voi
     const error = field<HTMLElement>('.error')
     const send = field<HTMLButtonElement>('[type=submit]')
     author.value = readAuthor()
+    field<HTMLInputElement>(`[name=device][value=${currentDevice()}]`).checked = true
 
     panel.addEventListener('change', () => {
       colorField.hidden = new FormData(panel).get('type') !== 'couleur'
@@ -285,7 +284,7 @@ export function mountOverlay(submit: (draft: Draft) => Promise<void>): () => voi
           selector,
           ...position,
           type,
-          priority: data.get('priority') as Priority,
+          device: data.get('device') as Device,
           message: text,
           color: type === 'couleur' && colorChosen ? swatch.value : undefined,
           author: name || undefined,

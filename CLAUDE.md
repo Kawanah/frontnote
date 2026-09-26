@@ -34,8 +34,8 @@ Trois briques **découplées**, c'est le point structurant du projet :
 1. **Widget** (`@kawanah/frontnote`) — JS vanilla, zéro dépendance framework. Doit marcher identiquement sur Astro, Next, WordPress. Overlay via `pointer-events`, positionnement via `getBoundingClientRect`. C'est la **seule** brique publiée en npm / CDN.
 2. **API centrale** — routes API Astro (`apps/server/src/pages/api/`), hébergée **une seule fois**, sert tous les sites clients :
    - `POST /api/comments` — public (widget) : CORS `*`, rate limit 30/10 min/IP, validation Zod, honeypot `_honey` (faux 201 si rempli)
-   - `GET /api/comments?project=&status=&type=&priority=` — token requis
-   - `PATCH /api/comments/:id` `{ status?, priority? }` — token requis
+   - `GET /api/comments?project=&status=&type=&device=` — token requis
+   - `PATCH /api/comments/:id` `{ status }` — token requis
    - Auth : `Authorization: Bearer <DASHBOARD_TOKEN>` ; token absent → tout refusé
    - Logique métier dans `src/lib/` (testable sans serveur) ; seul `src/lib/runtime.ts` lit `astro:env`
 3. **Dashboard** — pages Astro de `apps/server`, vue multi-projets, filtrage par site et par type, marquage résolu.
@@ -57,7 +57,7 @@ Activation : widget inactif par défaut, activé par le lien `?frontnote=<projec
 
 ## Modèle de données
 
-Table SQLite `comments`. Schéma = migrations dans `apps/server/src/lib/db.ts` (suivies par `PRAGMA user_version`, appliquées à l'ouverture) : ne jamais modifier une migration publiée, en ajouter une. Les listes (types, priorités, statuts) sont validées par Zod, pas par des `CHECK`. Un commentaire porte : `projectId`, `url` de la page, sélecteur CSS + `x`/`y` = position du clic **dans l'élément**, en fraction de sa taille (0 à 1), `type` (`texte` · `couleur` · `photo` · `mise-en-page` · `bug` · `autre`), `priority` (`bloquant` · `a-corriger` · `suggestion`), `message`, valeur couleur optionnelle, auteur, `context` (JSON : UA, langue, fenêtre, écran, densité, tactile — relevé par `packages/widget/src/context.ts`), statut (ouvert/résolu), timestamp.
+Table SQLite `comments`. Schéma = migrations dans `apps/server/src/lib/db.ts` (suivies par `PRAGMA user_version`, appliquées à l'ouverture) : ne jamais modifier une migration publiée, en ajouter une. Les listes (types, écrans, statuts) sont validées par Zod, pas par des `CHECK`. Un commentaire porte : `projectId`, `url` de la page, sélecteur CSS + `x`/`y` = position du clic **dans l'élément**, en fraction de sa taille (0 à 1), `type` (`texte` · `couleur` · `image` · `lien` · `bug` · `autre`), `device` = écran concerné (`desktop` · `mobile`, présélectionné selon la fenêtre < 768 px), `message`, valeur couleur optionnelle, auteur, `context` (JSON : UA, langue, fenêtre, écran, densité, tactile — relevé par `packages/widget/src/context.ts`), statut (ouvert/résolu), timestamp.
 
 ## Décisions déjà tranchées (ne pas re-litiger)
 
@@ -67,7 +67,8 @@ Table SQLite `comments`. Schéma = migrations dans `apps/server/src/lib/db.ts` (
 - **Auth dashboard : simple** (utilisatrice unique) — token unique (`DASHBOARD_TOKEN`). Ne pas sur-concevoir.
 - **Nom : FrontNote.**
 - **Hébergement : sous-domaine O2switch**, Astro standalone.
-- **V1 sans screenshot, sans upload photo.**
+- **V1 sans screenshot, sans upload d'image.**
+- **Pas de priorité** : remplacée par l'écran concerné (desktop / mobile).
 - **Activation par lien spécial** `?frontnote=<projectId>`.
 
 ## Questions ouvertes

@@ -57,11 +57,11 @@ Package = juste le widget (overlay + appels API). API/dashboard restent un servi
 - **Hébergement** : API + dashboard sur un sous-domaine O2switch (Node via cPanel). Sous-domaine exact à choisir.
 - **Stack serveur** : une seule appli Astro en mode standalone (routes API + pages dashboard). Un seul déploiement.
 - **Screenshot auto** : non en V1.
-- **Types de retour** : champ `type` sur chaque commentaire — `texte` · `couleur` (avec sélecteur de couleur) · `photo` · `mise-en-page` · `autre`. Filtrable dans le dashboard.
-- **Photo** : pas d'upload par le client en V1, il décrit seulement ce qu'il veut.
+- **Types de retour** : champ `type` sur chaque commentaire — `texte` · `couleur` (avec sélecteur de couleur) · `image` · `lien` · `bug` · `autre` (photo → image et mise en page → lien le 2026-09-26). Filtrable dans le dashboard.
+- **Image** : pas d'upload par le client en V1, il décrit seulement ce qu'il veut.
 - **Activation** : lien spécial `?frontnote=<projectId>`. Le script est présent mais invisible ; le lien active le widget et le mémorise dans le navigateur du client (`localStorage`). `?frontnote=off` désactive. Marche en préprod comme en prod, sans compte.
 
-- **Recette** (ajout 2026-09-26) : type `bug` en plus des autres ; **priorité** choisie par le client (`bloquant` · `a-corriger` par défaut · `suggestion`), modifiable depuis le dashboard ; **contexte technique** relevé automatiquement avec chaque retour (navigateur/UA, langue, taille fenêtre et écran, densité, tactile). Écartés pour l'instant : checklist de recette par projet, validation client finale.
+- **Recette** (ajout 2026-09-26) : type `bug` ; **écran concerné** choisi par le client (`desktop` · `mobile`, présélectionné selon son appareil) — remplace la priorité, abandonnée le 2026-09-26 ; **contexte technique** relevé automatiquement avec chaque retour (navigateur/UA, langue, taille fenêtre et écran, densité, tactile). Écartés pour l'instant : checklist de recette par projet, validation client finale.
 
 ## Reste à trancher
 

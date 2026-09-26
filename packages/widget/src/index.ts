@@ -3,7 +3,7 @@ import { pageUrl, postComment } from './api'
 import { collectContext } from './context'
 import { mountOverlay } from './overlay'
 
-export type { CommentType, Priority } from './types'
+export type { CommentType, Device } from './types'
 
 export interface FrontNoteOptions {
   /** Identifiant du projet client (ex. 'coress') */
