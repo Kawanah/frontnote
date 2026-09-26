@@ -12,11 +12,12 @@
   "scripts": {
     "dev": "bun run --filter server dev",
     "dev:widget": "bun run --filter @kawanah/frontnote dev",
-    "build": "bun run --filter @kawanah/frontnote build && bun run --filter server build",
+    "build": "bun run --filter @kawanah/frontnote build && cp packages/widget/dist/frontnote.js apps/server/public/frontnote.js && bun run --filter server build",
     "lint": "eslint packages apps",
     "format": "prettier --write packages apps",
     "test": "vitest run",
-    "prepare": "husky || true"
+    "prepare": "husky || true",
+    "paquet": "bun run build && sh scripts/paquet-deploiement.sh"
   },
   "lint-staged": {
     "*.{ts,mjs,astro}": [

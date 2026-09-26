@@ -4,6 +4,8 @@ import tailwindcss from '@tailwindcss/vite'
 import node from '@astrojs/node'
 
 export default defineConfig({
+  // Adresse publique : sert à la ligne d'installation et à la consigne agent
+  site: 'https://frontnote.kawanah.com',
   output: 'server',
   security: { checkOrigin: false }, // O2switch proxy
   adapter: node({ mode: 'standalone' }),

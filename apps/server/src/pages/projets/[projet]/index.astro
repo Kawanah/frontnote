@@ -79,7 +79,8 @@ const lots = (
 
 // Vue agent : même donnée, au format du contrat
 const exportAgent = JSON.stringify(exporterProjet(db, projet.id, filtre), null, 2)
-const origine = Astro.url.origin
+// En production, l'adresse publique (derrière le proxy O2switch, Astro.url peut être en http)
+const origine = import.meta.env.PROD && Astro.site ? Astro.site.origin : Astro.url.origin
 const urlAgent = `${origine}/api/projets/${projet.id}/corrections?statut=a_traiter`
 const consigne = `## Corrections (FrontNote)
 

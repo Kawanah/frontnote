@@ -18,3 +18,7 @@ apps/server/data/
 .claude/last-session.md
 
 .DS_Store
+
+# Généré au build (copie du widget) et paquet de déploiement
+apps/server/public/frontnote.js
+deploy/
