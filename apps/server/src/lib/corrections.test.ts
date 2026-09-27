@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
+  archiverProjet,
+  clore,
   creerDepuisWidget,
   exporterProjet,
   listCorrections,
@@ -15,7 +17,7 @@ import {
 } from './corrections'
 import { MIGRATIONS, openDatabase, userVersion, type Db } from './db'
 import { DomainError } from './errors'
-import { createProjet, getProjet } from './projets'
+import { createProjet, getProjet, rouvrirProjet, setJetonAgent } from './projets'
 
 const signalement: Omit<Signalement, '_honey'> = {
   projet: 'kawanah',
@@ -336,5 +338,32 @@ describe('identifiants entre projets (incident du 2026-09-27)', () => {
     expect(err.status).toBe(409)
     expect(err.message).toContain('REC-001')
     expect(getProjet(db, 'kawanah')!.compteur).toBe(0)
+  })
+})
+
+describe('clôture d’un projet', () => {
+  it('archive tout, purge ce projet seulement, refuse le widget, ne réutilise aucun numéro', () => {
+    createProjet(db, { id: 'coress', nom: 'CoReSS', prefixe: 'CRS-' })
+    const gardee = creerDepuisWidget(db, { ...signalement, projet: 'coress' })
+    creerDepuisWidget(db, signalement)
+    creerDepuisWidget(db, signalement)
+    setJetonAgent(db, 'kawanah', 'empreinte')
+
+    const archive = archiverProjet(db, 'kawanah')
+    expect(archive).toMatchObject({ projet: 'kawanah', prefixe: 'REC-', compteur: 2 })
+    expect(archive.corrections.map((c) => c.id)).toEqual(['REC-002', 'REC-001'])
+    expect(archive.corrections[0]!.historique).toHaveLength(1)
+
+    expect(clore(db, 'kawanah')).toBe(2)
+    expect(listCorrections(db, 'kawanah')).toEqual([])
+    expect(db.prepare('SELECT COUNT(*) AS n FROM historique').get()).toEqual({ n: 1 })
+    expect(listCorrections(db, 'coress').map((c) => c.id)).toEqual([gardee.id])
+    const close = getProjet(db, 'kawanah')!
+    expect(close.clos_le).not.toBeNull()
+    expect(close.jeton_agent).toBeNull()
+    expect(erreurDe(() => creerDepuisWidget(db, signalement)).status).toBe(410)
+
+    rouvrirProjet(db, 'kawanah')
+    expect(creerDepuisWidget(db, signalement).id).toBe('REC-003')
   })
 })

@@ -3,8 +3,8 @@ import Badge from '../../../components/Badge.astro'
 import Layout from '../../../layouts/Layout.astro'
 import { dateCourte, TON_GRAVITE, TON_STATUT } from '../../../lib/affichage'
 import { nouveauJeton } from '../../../lib/auth'
-import { exporterProjet, listCorrections, type Filtre } from '../../../lib/corrections'
-import { getProjet, setJetonAgent, updateReglages } from '../../../lib/projets'
+import { clore, exporterProjet, listCorrections, type Filtre } from '../../../lib/corrections'
+import { getProjet, rouvrirProjet, setJetonAgent, updateReglages } from '../../../lib/projets'
 import { getDb } from '../../../lib/runtime'
 import {
   APPAREIL_LABELS,
@@ -26,6 +26,7 @@ if (!projet) return new Response('Projet inconnu', { status: 404 })
 
 let jetonAffiche = ''
 let erreur = ''
+let erreurCloture = ''
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData()
@@ -45,8 +46,19 @@ if (Astro.request.method === 'POST') {
     } catch {
       erreur = 'Réglages invalides : un nom et au moins une nature active.'
     }
+  } else if (action === 'clore') {
+    if (form.get('archive') !== 'oui' || form.get('confirmation') !== projet.id) {
+      erreurCloture = `Cochez l'archive et tapez exactement « ${projet.id} » pour confirmer.`
+    } else {
+      const supprimees = clore(db, projet.id)
+      return Astro.redirect(`/projets/${projet.id}?clos=${supprimees}`)
+    }
+  } else if (action === 'rouvrir') {
+    rouvrirProjet(db, projet.id)
+    return Astro.redirect(`/projets/${projet.id}`)
   }
 }
+const supprimees = Astro.url.searchParams.get('clos')
 
 // Filtres : par défaut les corrections ouvertes
 const params = Astro.url.searchParams
@@ -98,6 +110,16 @@ Contrat : Contrat-corrections-agents.md (statuts, champs, règles du § 7).
 - Ne jamais passer une correction en « validee ».`
 
 const script = `<script src="${origine}/frontnote.js" data-project="${projet.id}" data-api="${origine}" defer></script>`
+// Fin de projet : consigne pour que l'agent retire FrontNote du site
+const retrait = `## Retirer FrontNote du site (projet « ${projet.id} » clos)
+
+FrontNote est terminé pour ce site : retirer toute trace du widget, dans une seule PR.
+
+- Supprimer la balise du widget (souvent dans le layout, avant </body>) :
+  ${script}
+- Retirer ${origine} des directives script-src et connect-src de la CSP.
+- Retirer FRONTNOTE_TOKEN du .env et la section « Corrections (FrontNote) » du CLAUDE.md.
+- Vérifier le build, ouvrir la PR. Ne pas pousser sur la branche principale sans accord : c'est une mise en ligne.`
 // Domaine à autoriser dans la CSP du site client
 const csp = `script-src  … ${origine}
 connect-src … ${origine}`
@@ -117,6 +139,35 @@ connect-src … ${origine}`
       </p>
     </div>
   </div>
+
+  {projet.clos_le && (
+    <div class="mb-4 space-y-3 rounded-md border border-line bg-paper p-4 text-sm">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p>
+          <span class="font-semibold">Projet clos le {dateCourte(projet.clos_le)}.</span>{' '}
+          {supprimees !== null &&
+            `${supprimees} correction${Number(supprimees) > 1 ? 's' : ''} supprimée${Number(supprimees) > 1 ? 's' : ''}. `}
+          Le widget ne s'affiche plus sur le site du client.
+        </p>
+        <form method="post">
+          <input type="hidden" name="_action" value="rouvrir" />
+          <button class="bouton">Rouvrir le projet</button>
+        </form>
+      </div>
+      <details>
+        <summary class="cursor-pointer font-semibold">
+          Consigne pour l'agent : retirer le widget du site
+        </summary>
+        <pre
+          id="retrait"
+          class="mt-2 overflow-x-auto rounded-md bg-surface p-3 font-mono text-xs whitespace-pre-wrap"
+        >{retrait}</pre>
+        <button type="button" class="bouton mt-2" data-copier="#retrait">
+          Copier la consigne
+        </button>
+      </details>
+    </div>
+  )}
 
   <form method="get" class="carte mb-4 grid gap-3 sm:grid-cols-5 sm:items-end">
     <label>
@@ -383,6 +434,43 @@ connect-src … ${origine}`
           <button class="bouton-principal">Enregistrer</button>
         </form>
       </details>
+
+      {!projet.clos_le && (
+        <details class="carte border-danger" open={erreurCloture !== ''}>
+          <summary class="cursor-pointer font-bold text-danger">Clore le projet</summary>
+          <div class="mt-4 space-y-4 text-sm">
+            <p class="text-muted">
+              Fin de projet : supprime définitivement les corrections et leur historique, retire le
+              jeton agent et fait disparaître le widget du site. Le préfixe{' '}
+              <span class="font-mono">{projet.prefixe}</span> reste réservé à ce projet.
+            </p>
+            <a href={`/projets/${projet.id}/archive.json`} class="bouton inline-block">
+              1. Télécharger l'archive (JSON)
+            </a>
+            <form method="post" class="space-y-3">
+              <input type="hidden" name="_action" value="clore" />
+              <label class="flex items-center gap-2">
+                <input type="checkbox" name="archive" value="oui" required />
+                2. J'ai téléchargé et rangé l'archive
+              </label>
+              <label class="block">
+                <span class="etiquette">
+                  3. Tapez <span class="font-mono">{projet.id}</span> pour confirmer
+                </span>
+                <input class="champ font-mono" name="confirmation" required autocomplete="off" />
+              </label>
+              {erreurCloture && (
+                <p class="text-danger" role="alert">
+                  {erreurCloture}
+                </p>
+              )}
+              <button class="bouton border-danger text-danger">
+                Clore et supprimer les corrections
+              </button>
+            </form>
+          </div>
+        </details>
+      )}
     </div>
   </section>
 </Layout>

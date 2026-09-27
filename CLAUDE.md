@@ -53,6 +53,7 @@ Trois briques **découplées**, c'est le point structurant du projet :
 1. **Widget** (`@kawanah/frontnote`) — JS vanilla, zéro dépendance framework. Doit marcher identiquement sur Astro, Next, WordPress. Overlay via `pointer-events`, positionnement via `getBoundingClientRect`. C'est la **seule** brique publiée en npm / CDN.
 2. **API centrale** — routes API Astro (`apps/server/src/pages/api/`), hébergée **une seule fois**, sert tous les sites clients :
    - `POST /api/corrections` — public (widget) : CORS `*`, rate limit 30/10 min/IP, Zod, honeypot `_honey` (faux 201). Crée une correction `nouvelle` ; projet inconnu → 404
+   - `GET /api/projets/:projet/etat` — public (widget) : `{ ouvert }`, 404 si projet inconnu. Rien d'autre n'est exposé
    - `GET /api/projets/:projet/corrections?statut=a_traiter,question_client&lot=&nature=&appareil=` — **vue agent**, JSON au format du § 6 du contrat. Jeton agent du projet, jeton agence ou session du dashboard
    - `PATCH /api/corrections/:id` `{ revision, statut?, ...champs }` — l'agent n'écrit que les champs du § 5 (schéma strict), l'agence ceux de qualification ; `revision` périmée → 409
    - Rôles (`lib/auth.ts`) : agence = `DASHBOARD_TOKEN` ; agent = jeton par projet (seule son empreinte SHA-256 est stockée, généré depuis le dashboard) ; client = widget sans jeton
@@ -77,7 +78,9 @@ initFrontNote({ projectId: 'coress', apiUrl: 'https://<api>' })
 
 Widget (`packages/widget/src/`) : `overlay.ts` = UI dans un Shadow DOM (bouton, surlignage, pins, formulaire), écouteurs en phase de capture sur `window` qui neutralisent les clics du site pendant le mode commentaire ; `mountOverlay` renvoie une fonction de nettoyage. `selector.ts` = sélecteur sans classes (#id simple sinon `tag:nth-of-type`). Types client et appareils dupliqués dans `types.ts` et `apps/server/src/lib/vocabulaire.ts` : les garder synchronisés. Type Texte : le « texte actuel » est relevé sur l'élément, le « nouveau texte » est envoyé **sans aucune retouche** (pas de trim). `zone` est décrite automatiquement (`describeElement`). Pins affichés = ceux envoyés pendant la visite uniquement.
 
-Activation : widget inactif par défaut, activé par le lien `?frontnote=<projectId>` et mémorisé en `localStorage` ; `?frontnote=off` désactive (`packages/widget/src/activation.ts`).
+Activation : widget inactif par défaut, activé par le lien `?frontnote=<projectId>` et mémorisé en `localStorage` ; `?frontnote=off` désactive (`packages/widget/src/activation.ts`). Une fois activé, il consulte `/etat` : projet clos ou inconnu → il ne s'affiche pas et oublie l'activation ; serveur injoignable → il s'affiche.
+
+Clôture d'un projet (dashboard, page projet) : archive JSON (`/projets/:projet/archive.json`), puis `clore()` supprime corrections et historique, retire le jeton agent, pose `projets.clos_le` (migration 3). Le projet reste : préfixe et compteur réservés. « Rouvrir » reprend la numérotation. Le bandeau fournit la consigne pour que l'agent retire le widget du site.
 
 ## Modèle de données : contrat de corrections
 

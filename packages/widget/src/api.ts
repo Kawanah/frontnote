@@ -14,11 +14,29 @@ export function pageUrl(href: string): string {
   return url.toString()
 }
 
+const base = (apiUrl: string) => apiUrl.replace(/\/+$/, '')
+
+// Le projet accepte-t-il des retours ? Clos ou inconnu → non.
+// Serveur injoignable → oui : l'envoi dira lui-même s'il échoue.
+export async function projectOpen(apiUrl: string, projectId: string): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `${base(apiUrl)}/api/projets/${encodeURIComponent(projectId)}/etat`
+    )
+    if (response.status === 404) return false
+    if (!response.ok) return true
+    const { ouvert } = (await response.json()) as { ouvert?: boolean }
+    return ouvert !== false
+  } catch {
+    return true
+  }
+}
+
 // apiUrl = adresse du serveur FrontNote (ex. https://frontnote.exemple.fr)
 export async function postComment(apiUrl: string, payload: CommentPayload): Promise<void> {
   let response: Response
   try {
-    response = await fetch(`${apiUrl.replace(/\/+$/, '')}/api/corrections`, {
+    response = await fetch(`${base(apiUrl)}/api/corrections`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

@@ -34,6 +34,7 @@ export interface Projet {
   revision: number
   mis_a_jour_le: string
   cree_le: string
+  clos_le: string | null
 }
 
 export interface ResumeProjet extends Projet {
@@ -97,6 +98,11 @@ export function updateReglages(db: Db, id: string, input: z.input<typeof reglage
     JSON.stringify(natures),
     id
   )
+}
+
+// Rouvre un projet clos : le widget accepte de nouveau les retours
+export function rouvrirProjet(db: Db, id: string) {
+  db.prepare('UPDATE projets SET clos_le = NULL WHERE id = ?').run(id)
 }
 
 export function setJetonAgent(db: Db, id: string, empreinte: string) {

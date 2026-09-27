@@ -7,6 +7,11 @@ const OFF = 'off'
 
 const storageKey = (projectId: string) => `frontnote:active:${projectId}`
 
+// Projet clos : le lien mémorisé ne réactive plus le widget
+export function forgetActivation(projectId: string, storage: Storage): void {
+  storage.removeItem(storageKey(projectId))
+}
+
 export function resolveActivation(projectId: string, search: string, storage: Storage): boolean {
   const value = new URLSearchParams(search).get(PARAM)
 

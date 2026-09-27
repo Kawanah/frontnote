@@ -1,5 +1,5 @@
-import { resolveActivation } from './activation'
-import { pageUrl, postComment } from './api'
+import { forgetActivation, resolveActivation } from './activation'
+import { pageUrl, postComment, projectOpen } from './api'
 import { collectContext } from './context'
 import { mountOverlay } from './overlay'
 
@@ -17,14 +17,14 @@ let started = false
 export function initFrontNote({ projectId, apiUrl }: FrontNoteOptions): void {
   if (typeof window === 'undefined' || started) return
 
-  let active = false
+  let storage: Storage
   try {
-    active = resolveActivation(projectId, window.location.search, window.localStorage)
+    storage = window.localStorage
+    if (!resolveActivation(projectId, window.location.search, storage)) return
   } catch {
     // localStorage indisponible (navigation privée stricte) : widget inactif
     return
   }
-  if (!active) return
   started = true
 
   const start = () =>
@@ -37,9 +37,16 @@ export function initFrontNote({ projectId, apiUrl }: FrontNoteOptions): void {
       })
     )
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start, { once: true })
-  } else {
-    start()
-  }
+  // Projet clos : le widget disparaît du site et oublie son activation
+  void projectOpen(apiUrl, projectId).then((open) => {
+    if (!open) {
+      forgetActivation(projectId, storage)
+      return
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', start, { once: true })
+    } else {
+      start()
+    }
+  })
 }

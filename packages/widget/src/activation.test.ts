@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveActivation } from './activation'
+import { forgetActivation, resolveActivation } from './activation'
 
 function memoryStorage(): Storage {
   const data = new Map<string, string>()
@@ -34,6 +34,13 @@ describe('resolveActivation', () => {
     const storage = memoryStorage()
     resolveActivation('coress', '?frontnote=coress', storage)
     expect(resolveActivation('coress', '?frontnote=off', storage)).toBe(false)
+    expect(resolveActivation('coress', '', storage)).toBe(false)
+  })
+
+  it('oublie l’activation quand le projet est clos', () => {
+    const storage = memoryStorage()
+    resolveActivation('coress', '?frontnote=coress', storage)
+    forgetActivation('coress', storage)
     expect(resolveActivation('coress', '', storage)).toBe(false)
   })
 })

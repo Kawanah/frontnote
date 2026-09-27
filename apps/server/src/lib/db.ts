@@ -103,6 +103,10 @@ export const MIGRATIONS = [
    DROP TABLE renommer;
 
    CREATE UNIQUE INDEX projets_prefixe ON projets (prefixe);`,
+
+  // 3 — Clôture d'un projet : corrections purgées, projet gardé (préfixe et compteur
+  // réservés, contrat § 7.4), widget refusé tant que clos_le est posé
+  `ALTER TABLE projets ADD COLUMN clos_le TEXT;`,
 ]
 
 // Exécute fn dans une transaction : tout ou rien

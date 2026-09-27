@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { pageUrl, postComment, type CommentPayload } from './api'
+import { pageUrl, postComment, projectOpen, type CommentPayload } from './api'
 
 const payload: CommentPayload = {
   projet: 'coress',
@@ -40,5 +40,31 @@ describe('postComment', () => {
 
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')))
     await expect(postComment('https://api.test', payload)).rejects.toThrow(/Connexion/)
+  })
+})
+
+describe('projectOpen', () => {
+  const repond = (body: unknown, status = 200) =>
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(body, { status })))
+
+  it('interroge /api/projets/:projet/etat', async () => {
+    const fetch = vi.fn().mockResolvedValue(Response.json({ ouvert: true }))
+    vi.stubGlobal('fetch', fetch)
+    expect(await projectOpen('https://api.test/', 'coress')).toBe(true)
+    expect(fetch).toHaveBeenCalledWith('https://api.test/api/projets/coress/etat')
+  })
+
+  it('projet clos ou inconnu : le widget ne s’affiche pas', async () => {
+    repond({ ouvert: false })
+    expect(await projectOpen('https://api.test', 'coress')).toBe(false)
+    repond({ ouvert: false }, 404)
+    expect(await projectOpen('https://api.test', 'coress')).toBe(false)
+  })
+
+  it('serveur injoignable ou en erreur : le widget s’affiche quand même', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')))
+    expect(await projectOpen('https://api.test', 'coress')).toBe(true)
+    repond({}, 503)
+    expect(await projectOpen('https://api.test', 'coress')).toBe(true)
   })
 })

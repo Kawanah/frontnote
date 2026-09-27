@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { aujourdhui, maintenant } from './dates'
 import { transaction, type Db } from './db'
 import { DomainError } from './errors'
-import { bumpRevision, getProjet, nextId, projetIdSchema } from './projets'
+import { bumpRevision, getProjet, nextId, projetIdSchema, type Projet } from './projets'
 import { describeUserAgent } from './userAgent'
 import {
   APPAREILS,
@@ -273,6 +273,12 @@ export function creerDepuisWidget(db: Db, input: Omit<Signalement, '_honey'>): C
   return transaction(db, () => {
     const projet = getProjet(db, input.projet)
     if (!projet) throw new DomainError(404, `Projet inconnu : « ${input.projet} »`)
+    if (projet.clos_le) {
+      throw new DomainError(
+        410,
+        `Le projet « ${projet.id} » est clos : il ne reçoit plus de retours`
+      )
+    }
 
     const id = nextId(db, projet.id)
     // Garde-fou : un identifiant déjà pris donne une erreur lisible, pas un 500
@@ -535,4 +541,38 @@ export function exporterProjet(db: Db, projetId: string, filtre: Filtre = {}) {
     mis_a_jour_le: projet.mis_a_jour_le,
     corrections: listCorrections(db, projet.id, filtre).map(versContrat),
   }
+}
+
+// --- Clôture d'un projet -----------------------------------------------------
+
+// Archive complète (toutes les corrections, avec leur historique) à garder avant la purge
+export function archiverProjet(db: Db, projetId: string) {
+  const { corrections, ...entete } = exporterProjet(db, projetId)
+  const projet = getProjet(db, projetId) as Projet
+  return {
+    ...entete,
+    nom: projet.nom,
+    prefixe: projet.prefixe,
+    compteur: projet.compteur,
+    archive_le: maintenant(),
+    corrections,
+  }
+}
+
+// Fin de projet : supprime corrections et historique, retire le jeton agent, refuse le
+// widget. Le projet reste : préfixe et compteur ne servent jamais deux fois (§ 7.4).
+export function clore(db: Db, projetId: string): number {
+  return transaction(db, () => {
+    if (!getProjet(db, projetId)) throw new DomainError(404, `Projet inconnu : « ${projetId} »`)
+    db.prepare(
+      'DELETE FROM historique WHERE correction_id IN (SELECT id FROM corrections WHERE projet = ?)'
+    ).run(projetId)
+    const { changes } = db.prepare('DELETE FROM corrections WHERE projet = ?').run(projetId)
+    db.prepare('UPDATE projets SET clos_le = ?, jeton_agent = NULL WHERE id = ?').run(
+      maintenant(),
+      projetId
+    )
+    bumpRevision(db, projetId)
+    return Number(changes)
+  })
 }
