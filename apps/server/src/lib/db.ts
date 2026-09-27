@@ -76,6 +76,33 @@ export const MIGRATIONS = [
      note          TEXT NOT NULL DEFAULT ''
    );
    CREATE INDEX historique_correction ON historique (correction_id);`,
+
+  // 2 — Un préfixe par projet : corrections.id est unique pour toute la base, deux
+  // projets en REC- fabriquaient le même REC-012 (incident du 2026-09-27).
+  // En production, kawanah (REC-001 seulement) passe en KAW- ; coress garde REC-.
+  // Contraintes vérifiées au COMMIT : l'historique suit le renommage.
+  `PRAGMA defer_foreign_keys = ON;
+
+   CREATE TEMP TABLE renommer AS
+     SELECT 1 FROM projets k
+     WHERE k.id = 'kawanah' AND k.prefixe = 'REC-'
+       AND EXISTS (SELECT 1 FROM projets p WHERE p.id <> 'kawanah' AND p.prefixe = 'REC-');
+
+   UPDATE historique SET correction_id = 'KAW-' || substr(correction_id, 5)
+   WHERE EXISTS (SELECT 1 FROM renommer)
+     AND correction_id IN (SELECT id FROM corrections WHERE projet = 'kawanah' AND id LIKE 'REC-%');
+
+   UPDATE corrections SET id = 'KAW-' || substr(id, 5)
+   WHERE EXISTS (SELECT 1 FROM renommer) AND projet = 'kawanah' AND id LIKE 'REC-%';
+
+   UPDATE projets
+   SET prefixe = 'KAW-', revision = revision + 1,
+       mis_a_jour_le = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+   WHERE EXISTS (SELECT 1 FROM renommer) AND id = 'kawanah';
+
+   DROP TABLE renommer;
+
+   CREATE UNIQUE INDEX projets_prefixe ON projets (prefixe);`,
 ]
 
 // Exécute fn dans une transaction : tout ou rien

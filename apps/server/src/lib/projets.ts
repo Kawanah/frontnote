@@ -53,6 +53,15 @@ export function getProjet(db: Db, id: string): Projet | null {
 export function createProjet(db: Db, input: z.input<typeof nouveauProjetSchema>): Projet {
   const { id, nom, prefixe, premier_numero } = nouveauProjetSchema.parse(input)
   if (getProjet(db, id)) throw new DomainError(409, `Le projet « ${id} » existe déjà`)
+  // Préfixe unique : les identifiants (REC-012) le sont pour toute la base
+  const pris = db.prepare('SELECT id FROM projets WHERE prefixe = ?').get(prefixe) as
+    { id: string } | undefined
+  if (pris) {
+    throw new DomainError(
+      409,
+      `Le préfixe « ${prefixe} » est déjà utilisé par le projet « ${pris.id} » : choisissez-en un autre (ex. KAW-)`
+    )
+  }
   const now = maintenant()
   db.prepare(
     `INSERT INTO projets (id, nom, prefixe, compteur, natures, mis_a_jour_le, cree_le)

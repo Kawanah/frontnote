@@ -84,7 +84,7 @@ Activation : widget inactif par défaut, activé par le lien `?frontnote=<projec
 Le modèle suit `/Users/martinlaetitia/Documents/011-KAWANAH-STUDIO/Contrat-corrections-agents.md` (v2). **Le relire avant toute modification** des champs, statuts ou droits. Vocabulaire et libellés : `apps/server/src/lib/vocabulaire.ts`.
 
 - Tables (`lib/db.ts`, migrations suivies par `PRAGMA user_version` ; ne jamais modifier une migration déployée, en ajouter une) : `projets` (préfixe, compteur qui ne recule jamais, natures actives, empreinte du jeton agent, `revision`), `corrections` (colonnes = noms de champs du contrat, + ancrage `url`/`selecteur`/`x`/`y`, `type_client`, `couleur`, `auteur`, `contexte`), `historique` (ajout seul).
-- Identifiants `REC-001` par projet (préfixe et premier numéro réglables à la création).
+- Identifiants `REC-001` par projet (préfixe et premier numéro réglables à la création). **Préfixe unique par projet** (index `projets_prefixe`, migration 2) : `corrections.id` est unique pour toute la base. `kawanah` = `KAW-`, `coress` = `REC-`.
 - Statuts et droits : `lib/corrections.ts` (`CIBLES` par rôle, `DEPUIS` par statut, `champsManquants`). L'agent ne pose jamais `validee`.
 - Le client choisit un type simple (texte, couleur, image, lien, bug, autre) → `nature` proposée (`NATURE_PAR_TYPE`), confirmée par l'agence. Écran : Desktop / Mobile / Les deux → `appareil` `ordinateur` / `mobile` / `tous`.
 - `texte_attendu` : jamais retouché, jamais modifiable dans le dashboard (règle 7.1).

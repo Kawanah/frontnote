@@ -1,6 +1,7 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   creerDepuisWidget,
@@ -70,8 +71,8 @@ describe('création par le widget', () => {
   })
 
   it('respecte le préfixe et le premier numéro du projet', () => {
-    createProjet(db, { id: 'coress', nom: 'CoReSS', prefixe: 'REC-', premier_numero: 12 })
-    expect(creerDepuisWidget(db, { ...signalement, projet: 'coress' }).id).toBe('REC-012')
+    createProjet(db, { id: 'coress', nom: 'CoReSS', prefixe: 'CRS-', premier_numero: 12 })
+    expect(creerDepuisWidget(db, { ...signalement, projet: 'coress' }).id).toBe('CRS-012')
   })
 
   it('garde le texte du client mot pour mot', () => {
@@ -274,5 +275,66 @@ describe('base', () => {
     expect(userVersion(again)).toBe(MIGRATIONS.length)
     expect(listCorrections(again, 'kawanah')).toHaveLength(1)
     again.close()
+  })
+})
+
+describe('identifiants entre projets (incident du 2026-09-27)', () => {
+  it('refuse un second projet avec le même préfixe (409)', () => {
+    const err = erreurDe(() => createProjet(db, { id: 'coress', nom: 'CoReSS', prefixe: 'REC-' }))
+    expect(err.status).toBe(409)
+    expect(err.message).toContain('« kawanah »')
+    expect(getProjet(db, 'coress')).toBeNull()
+  })
+
+  it('migration 2 : kawanah passe en KAW- avec son historique, coress garde REC-', () => {
+    // État de la production : deux projets en REC-, base en version 1
+    const path = join(mkdtempSync(join(tmpdir(), 'frontnote-')), 'prod.db')
+    const v1 = new DatabaseSync(path)
+    v1.exec(MIGRATIONS[0]!)
+    v1.exec('PRAGMA user_version = 1')
+    const projet = v1.prepare(
+      `INSERT INTO projets (id, nom, prefixe, compteur, natures, mis_a_jour_le, cree_le)
+       VALUES (?, ?, 'REC-', ?, '["image"]', '2026-09-26', '2026-09-26')`
+    )
+    projet.run('kawanah', 'Kawanah', 1)
+    projet.run('coress', 'CoReSS', 11)
+    v1.prepare(
+      `INSERT INTO corrections (id, projet, date_signalement, signale_par, canal, page, zone,
+         appareil, cree_le, mis_a_jour_le)
+       VALUES ('REC-001', 'kawanah', '2026-09-27', 'client', 'app', '/', 'titre', 'tous', 'x', 'x')`
+    ).run()
+    v1.prepare(
+      `INSERT INTO historique (correction_id, date, auteur, vers) VALUES ('REC-001', 'x', 'client', 'nouvelle')`
+    ).run()
+    v1.close()
+
+    const migree = openDatabase(path)
+    expect(userVersion(migree)).toBe(MIGRATIONS.length)
+    expect(getProjet(migree, 'kawanah')).toMatchObject({
+      prefixe: 'KAW-',
+      compteur: 1,
+      revision: 1,
+    })
+    expect(getProjet(migree, 'coress')).toMatchObject({ prefixe: 'REC-', compteur: 11 })
+    const [renommee] = listCorrections(migree, 'kawanah')
+    expect(renommee).toMatchObject({ id: 'KAW-001' })
+    expect(renommee!.historique).toHaveLength(1)
+
+    // Plus de collision : chaque projet suit sa numérotation
+    expect(creerDepuisWidget(migree, signalement).id).toBe('KAW-002')
+    expect(creerDepuisWidget(migree, { ...signalement, projet: 'coress' }).id).toBe('REC-012')
+    expect(() =>
+      migree.prepare("UPDATE projets SET prefixe = 'REC-' WHERE id = 'kawanah'").run()
+    ).toThrow(/UNIQUE/)
+    migree.close()
+  })
+
+  it('identifiant déjà pris : 409 lisible au lieu d’une erreur interne, compteur intact', () => {
+    creerDepuisWidget(db, signalement)
+    db.prepare("UPDATE projets SET compteur = 0 WHERE id = 'kawanah'").run()
+    const err = erreurDe(() => creerDepuisWidget(db, signalement))
+    expect(err.status).toBe(409)
+    expect(err.message).toContain('REC-001')
+    expect(getProjet(db, 'kawanah')!.compteur).toBe(0)
   })
 })

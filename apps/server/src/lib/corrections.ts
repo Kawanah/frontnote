@@ -275,6 +275,13 @@ export function creerDepuisWidget(db: Db, input: Omit<Signalement, '_honey'>): C
     if (!projet) throw new DomainError(404, `Projet inconnu : « ${input.projet} »`)
 
     const id = nextId(db, projet.id)
+    // Garde-fou : un identifiant déjà pris donne une erreur lisible, pas un 500
+    if (db.prepare('SELECT 1 FROM corrections WHERE id = ?').get(id)) {
+      throw new DomainError(
+        409,
+        `L’identifiant ${id} existe déjà : vérifiez le préfixe et le compteur du projet « ${projet.id} »`
+      )
+    }
     const now = maintenant()
     const proposee = NATURE_PAR_TYPE[input.type]
     const texte = input.type === 'texte'
