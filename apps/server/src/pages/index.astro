@@ -77,8 +77,14 @@ const projets = listProjets(getDb())
           name="id"
           required
           pattern="[a-z0-9\-]{1,50}"
-          placeholder="kawanah"
+          placeholder="ex. hotel-du-lac"
+          autocomplete="off"
+          aria-describedby="aide-id"
+          title="Minuscules, chiffres et tirets, sans espace ni accent"
         />
+        <span id="aide-id" class="mt-1 block text-xs text-muted">
+          Minuscules, chiffres et tirets, sans espace ni accent.
+        </span>
       </label>
       <label>
         <span class="etiquette">Nom</span>
