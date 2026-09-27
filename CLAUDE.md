@@ -22,7 +22,7 @@ apps/server/       Astro 7 standalone — routes API + dashboard, un seul déplo
 - `bun run test` — Vitest ; test ciblé : `bunx vitest run packages/widget/src/activation.test.ts`
 - `bun run lint` / `bun run format`
 - Vérif types : `bunx tsc -p packages/widget` · `cd apps/server && bunx astro check`
-- Démo widget : `.claude/launch.json` → `server` (port 4400) + `demo` (port 5173, sert `packages/widget`) ; ouvrir `http://localhost:5173/demo/?frontnote=demo` après `bun run build`. Le 4321 est souvent pris par d'autres projets Astro
+- Démo widget : `.claude/launch.json` → `server` (port 4400) + `demo` (port 5173, sert `packages/widget`) ; ouvrir `http://localhost:5173/demo/?frontnote=<clé du projet demo>` (lien d'accès affiché sur la page du projet) après `bun run build`. Le 4321 est souvent pris par d'autres projets Astro
 - Lancer le build serveur : `cd apps/server && PORT=4321 node dist/server/entry.mjs`
 - Dev : `apps/server/.env` (non versionné) doit contenir `DASHBOARD_TOKEN` pour se connecter au dashboard
 
@@ -30,7 +30,7 @@ apps/server/       Astro 7 standalone — routes API + dashboard, un seul déplo
 
 1. Créer le projet dans le dashboard ; copier la ligne `<script>` (sur Astro : `is:inline`), avant `</body>`.
 2. **CSP du site** : ajouter `https://frontnote.kawanah.com` à `script-src` **et** `connect-src`, sinon le widget est bloqué sans message. Vérifier sur la page **en ligne** que l'en-tête CSP est bien envoyé : sur un site Astro pré-généré, le middleware ne tourne pas pour les pages statiques (cas de www.kawanah.com au 2026-09-26).
-3. Tester avec `?frontnote=<projet>` sur ordi et mobile.
+3. Tester avec le **lien d'accès** du dashboard (`?frontnote=<clé>`) sur ordi et mobile, puis l'envoyer au client.
 4. Pour l'agent de code : jeton agent dans le `.env` du site + consigne dans son `CLAUDE.md` (fournis par le dashboard).
 
 Premier site équipé : www.kawanah.com (projet `kawanah`, dépôt `Kawanah/Kawanah`).
@@ -52,8 +52,8 @@ Trois briques **découplées**, c'est le point structurant du projet :
 
 1. **Widget** (`@kawanah/frontnote`) — JS vanilla, zéro dépendance framework. Doit marcher identiquement sur Astro, Next, WordPress. Overlay via `pointer-events`, positionnement via `getBoundingClientRect`. C'est la **seule** brique publiée en npm / CDN.
 2. **API centrale** — routes API Astro (`apps/server/src/pages/api/`), hébergée **une seule fois**, sert tous les sites clients :
-   - `POST /api/corrections` — public (widget) : CORS `*`, rate limit 30/10 min/IP, Zod, honeypot `_honey` (faux 201). Crée une correction `nouvelle` ; projet inconnu → 404
-   - `GET /api/projets/:projet/etat` — public (widget) : `{ ouvert }`, 404 si projet inconnu. Rien d'autre n'est exposé
+   - `POST /api/corrections` — public (widget) : CORS `*`, rate limit 30/10 min/IP, Zod, honeypot `_honey` (faux 201). Exige la clé d'activation `cle` (403 sinon). Crée une correction `nouvelle` ; projet inconnu → 404, clos → 410
+   - `GET /api/projets/:projet/etat?cle=` — public (widget) : `{ ouvert, active }` (active = ouvert et clé valide), 404 si projet inconnu. Rien d'autre n'est exposé
    - `GET /api/projets/:projet/corrections?statut=a_traiter,question_client&lot=&nature=&appareil=` — **vue agent**, JSON au format du § 6 du contrat. Jeton agent du projet, jeton agence ou session du dashboard
    - `PATCH /api/corrections/:id` `{ revision, statut?, ...champs }` — l'agent n'écrit que les champs du § 5 (schéma strict), l'agence ceux de qualification ; `revision` périmée → 409
    - Rôles (`lib/auth.ts`) : agence = `DASHBOARD_TOKEN` ; agent = jeton par projet (seule son empreinte SHA-256 est stockée, généré depuis le dashboard) ; client = widget sans jeton
@@ -78,7 +78,7 @@ initFrontNote({ projectId: 'coress', apiUrl: 'https://<api>' })
 
 Widget (`packages/widget/src/`) : `overlay.ts` = UI dans un Shadow DOM (bouton, surlignage, pins, formulaire), écouteurs en phase de capture sur `window` qui neutralisent les clics du site pendant le mode commentaire ; `mountOverlay` renvoie une fonction de nettoyage. `selector.ts` = sélecteur sans classes (#id simple sinon `tag:nth-of-type`). Types client et appareils dupliqués dans `types.ts` et `apps/server/src/lib/vocabulaire.ts` : les garder synchronisés. Type Texte : le « texte actuel » est relevé sur l'élément, le « nouveau texte » est envoyé **sans aucune retouche** (pas de trim). `zone` est décrite automatiquement (`describeElement`). Pins affichés = ceux envoyés pendant la visite uniquement.
 
-Activation : widget inactif par défaut, activé par le lien `?frontnote=<projectId>` et mémorisé en `localStorage` ; `?frontnote=off` désactive (`packages/widget/src/activation.ts`). Une fois activé, il consulte `/etat` : projet clos ou inconnu → il ne s'affiche pas et oublie l'activation ; serveur injoignable → il s'affiche.
+Activation : widget inactif par défaut, activé par le lien `?frontnote=<clé d'activation>` (clé aléatoire par projet, `projets.cle_activation`, migration 4, régénérable dans le dashboard). Le widget fait vérifier la clé par `/etat?cle=` : acceptée → mémorisée en `localStorage` ; refusée, projet clos ou inconnu → rien ne s'affiche et l'activation est oubliée ; serveur injoignable → il s'affiche (l'envoi tranchera). `POST /api/corrections` exige `cle` (403 sinon). `?frontnote=off` désactive (`packages/widget/src/activation.ts`). L'ancien lien `?frontnote=<projet>` n'active plus rien.
 
 Clôture d'un projet (dashboard, page projet) : archive JSON (`/projets/:projet/archive.json`), puis `clore()` supprime corrections et historique, retire le jeton agent, pose `projets.clos_le` (migration 3). Le projet reste : préfixe et compteur réservés. « Rouvrir » reprend la numérotation. Le bandeau fournit la consigne pour que l'agent retire le widget du site.
 
@@ -104,7 +104,7 @@ Le modèle suit `/Users/martinlaetitia/Documents/011-KAWANAH-STUDIO/Contrat-corr
 - **V1 sans screenshot, sans upload d'image.**
 - **Pas de priorité côté client** : l'écran concerné à la place ; la `gravite` du contrat est posée par l'agence.
 - **Le dashboard est la source unique** des corrections, lu et mis à jour par l'agent de code (réponses au § 9 dans `SPEC.md`).
-- **Activation par lien spécial** `?frontnote=<projectId>`.
+- **Activation par lien spécial** `?frontnote=<clé d'activation>` (clé secrète par projet depuis le 2026-09-27 ; le nom du projet, lisible dans `data-project`, n'active plus rien).
 
 ## Questions ouvertes
 

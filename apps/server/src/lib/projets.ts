@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { nouvelleCle } from './auth'
 import { maintenant } from './dates'
 import type { Db } from './db'
 import { DomainError } from './errors'
@@ -35,6 +36,7 @@ export interface Projet {
   mis_a_jour_le: string
   cree_le: string
   clos_le: string | null
+  cle_activation: string
 }
 
 export interface ResumeProjet extends Projet {
@@ -65,9 +67,18 @@ export function createProjet(db: Db, input: z.input<typeof nouveauProjetSchema>)
   }
   const now = maintenant()
   db.prepare(
-    `INSERT INTO projets (id, nom, prefixe, compteur, natures, mis_a_jour_le, cree_le)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, nom, prefixe, premier_numero - 1, JSON.stringify(NATURES_COMMUNES), now, now)
+    `INSERT INTO projets (id, nom, prefixe, compteur, natures, cle_activation, mis_a_jour_le, cree_le)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    nom,
+    prefixe,
+    premier_numero - 1,
+    JSON.stringify(NATURES_COMMUNES),
+    nouvelleCle(),
+    now,
+    now
+  )
   return getProjet(db, id) as Projet
 }
 
@@ -98,6 +109,13 @@ export function updateReglages(db: Db, id: string, input: z.input<typeof reglage
     JSON.stringify(natures),
     id
   )
+}
+
+// Nouvelle clé d'activation : les liens envoyés avec l'ancienne cessent de marcher
+export function regenererCle(db: Db, id: string): string {
+  const cle = nouvelleCle()
+  db.prepare('UPDATE projets SET cle_activation = ? WHERE id = ?').run(cle, id)
+  return cle
 }
 
 // Rouvre un projet clos : le widget accepte de nouveau les retours

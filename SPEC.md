@@ -59,7 +59,7 @@ Package = juste le widget (overlay + appels API). API/dashboard restent un servi
 - **Screenshot auto** : non en V1.
 - **Types de retour** : champ `type` sur chaque commentaire — `texte` · `couleur` (avec sélecteur de couleur) · `image` · `lien` · `bug` · `autre` (photo → image et mise en page → lien le 2026-09-26). Filtrable dans le dashboard.
 - **Image** : pas d'upload par le client en V1, il décrit seulement ce qu'il veut.
-- **Activation** : lien spécial `?frontnote=<projectId>`. Le script est présent mais invisible ; le lien active le widget et le mémorise dans le navigateur du client (`localStorage`). `?frontnote=off` désactive. Marche en préprod comme en prod, sans compte.
+- **Activation** : lien spécial `?frontnote=<clé d'activation>` (clé secrète propre au projet, vérifiée par le serveur ; depuis le 2026-09-27, le nom du projet n'active plus rien). Le script est présent mais invisible ; le lien active le widget et le mémorise dans le navigateur du client (`localStorage`). `?frontnote=off` désactive. Marche en préprod comme en prod, sans compte.
 
 - **Recette** (ajout 2026-09-26) : type `bug` ; **écran concerné** choisi par le client (`desktop` · `mobile`, présélectionné selon son appareil) — remplace la priorité, abandonnée le 2026-09-26 ; **contexte technique** relevé automatiquement avec chaque retour (navigateur/UA, langue, taille fenêtre et écran, densité, tactile). Écartés pour l'instant : checklist de recette par projet, validation client finale.
 

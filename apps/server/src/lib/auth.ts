@@ -20,6 +20,14 @@ export function nouveauJeton(): { jeton: string; empreinte: string } {
   return { jeton, empreinte: digest(jeton).toString('hex') }
 }
 
+// Clé d'activation du widget (?frontnote=<clé>) : aléatoire, propre au projet
+export const nouvelleCle = () => randomBytes(12).toString('hex')
+
+export function cleValide(attendue: string | null, donnee: string | undefined): boolean {
+  if (!attendue || !donnee) return false
+  return egal(digest(donnee), digest(attendue))
+}
+
 // Rôle porté par l'en-tête Authorization pour un projet donné
 export function roleFor(
   header: string | null,

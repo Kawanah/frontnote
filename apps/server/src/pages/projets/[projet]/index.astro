@@ -4,7 +4,13 @@ import Layout from '../../../layouts/Layout.astro'
 import { dateCourte, TON_GRAVITE, TON_STATUT } from '../../../lib/affichage'
 import { nouveauJeton } from '../../../lib/auth'
 import { clore, exporterProjet, listCorrections, type Filtre } from '../../../lib/corrections'
-import { getProjet, rouvrirProjet, setJetonAgent, updateReglages } from '../../../lib/projets'
+import {
+  getProjet,
+  regenererCle,
+  rouvrirProjet,
+  setJetonAgent,
+  updateReglages,
+} from '../../../lib/projets'
 import { getDb } from '../../../lib/runtime'
 import {
   APPAREIL_LABELS,
@@ -36,6 +42,9 @@ if (Astro.request.method === 'POST') {
     setJetonAgent(db, projet.id, empreinte)
     projet.jeton_agent = empreinte
     jetonAffiche = jeton
+  } else if (action === 'cle') {
+    regenererCle(db, projet.id)
+    return Astro.redirect(`/projets/${projet.id}`)
   } else if (action === 'reglages') {
     try {
       updateReglages(db, projet.id, {
@@ -372,8 +381,8 @@ connect-src … ${origine}`
       <div class="carte space-y-3">
         <h2 class="font-bold">Installation du widget</h2>
         <p class="text-sm text-muted">
-          Une ligne avant la fermeture de &lt;/body&gt;, puis envoyer au client le lien{' '}
-          <span class="font-mono">?frontnote={projet.id}</span>.
+          Une ligne avant la fermeture de &lt;/body&gt;, puis envoyer au client le lien d'accès
+          ci-dessous.
         </p>
         <pre
           id="script"
@@ -385,6 +394,33 @@ connect-src … ${origine}`
         <p class="text-xs text-muted">
           Site Astro : ajouter <span class="font-mono">is:inline</span> dans la balise.
         </p>
+        <div class="space-y-2 rounded-md border border-line p-3 text-sm">
+          <p class="font-semibold">Lien d'accès pour le client</p>
+          <p class="text-muted">
+            À ajouter à l'adresse de n'importe quelle page du site. Sans cette clé, le widget reste
+            invisible et le serveur refuse les retours.
+          </p>
+          <div class="flex gap-2">
+            <code
+              id="lien-acces"
+              class="min-w-0 flex-1 truncate rounded bg-paper px-2 py-1 font-mono text-xs"
+            >
+              ?frontnote={projet.cle_activation}
+            </code>
+            <button type="button" class="bouton" data-copier="#lien-acces">
+              Copier
+            </button>
+          </div>
+          <form
+            method="post"
+            onsubmit="return confirm('Les liens déjà envoyés cesseront de fonctionner. Continuer ?')"
+          >
+            <input type="hidden" name="_action" value="cle" />
+            <button class="text-xs text-muted underline">
+              Régénérer la clé (les anciens liens cessent de marcher)
+            </button>
+          </form>
+        </div>
         <div class="rounded-md border border-warn bg-warn-soft p-3 text-sm">
           <p class="font-semibold text-warn">Si le site a une CSP (Content-Security-Policy)</p>
           <p class="mt-1 text-muted">

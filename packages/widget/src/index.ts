@@ -1,5 +1,5 @@
-import { forgetActivation, resolveActivation } from './activation'
-import { pageUrl, postComment, projectOpen } from './api'
+import { forgetActivation, rememberActivation, resolveActivation } from './activation'
+import { checkAccess, pageUrl, postComment } from './api'
 import { collectContext } from './context'
 import { mountOverlay } from './overlay'
 
@@ -18,13 +18,16 @@ export function initFrontNote({ projectId, apiUrl }: FrontNoteOptions): void {
   if (typeof window === 'undefined' || started) return
 
   let storage: Storage
+  let found: string | null
   try {
     storage = window.localStorage
-    if (!resolveActivation(projectId, window.location.search, storage)) return
+    found = resolveActivation(projectId, window.location.search, storage)
   } catch {
     // localStorage indisponible (navigation privée stricte) : widget inactif
     return
   }
+  if (!found) return
+  const cle = found
   started = true
 
   const start = () =>
@@ -32,16 +35,29 @@ export function initFrontNote({ projectId, apiUrl }: FrontNoteOptions): void {
       postComment(apiUrl, {
         ...draft,
         projet: projectId,
+        cle,
         url: pageUrl(window.location.href),
         contexte: collectContext(),
       })
     )
 
-  // Projet clos : le widget disparaît du site et oublie son activation
-  void projectOpen(apiUrl, projectId).then((open) => {
-    if (!open) {
-      forgetActivation(projectId, storage)
+  // Clé vérifiée par le serveur. Refusée (mauvaise clé, projet clos ou inconnu) :
+  // le widget ne s'affiche pas et oublie l'activation.
+  void checkAccess(apiUrl, projectId, cle).then((access) => {
+    if (access === 'refused') {
+      try {
+        forgetActivation(projectId, storage)
+      } catch {
+        // stockage indisponible : rien à oublier
+      }
       return
+    }
+    if (access === 'ok') {
+      try {
+        rememberActivation(projectId, cle, storage)
+      } catch {
+        // stockage refusé : le widget s'affiche pour cette visite seulement
+      }
     }
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', start, { once: true })

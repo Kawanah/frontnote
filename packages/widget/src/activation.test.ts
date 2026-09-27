@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { forgetActivation, resolveActivation } from './activation'
+import { forgetActivation, rememberActivation, resolveActivation } from './activation'
 
 function memoryStorage(): Storage {
   const data = new Map<string, string>()
@@ -17,30 +17,39 @@ function memoryStorage(): Storage {
 
 describe('resolveActivation', () => {
   it('reste inactif sans lien ni mémoire', () => {
-    expect(resolveActivation('coress', '', memoryStorage())).toBe(false)
+    expect(resolveActivation('coress', '', memoryStorage())).toBeNull()
   })
 
-  it('active et mémorise via ?frontnote=<projet>', () => {
+  it('propose la clé du lien ?frontnote=<clé>, sans la mémoriser avant validation', () => {
     const storage = memoryStorage()
-    expect(resolveActivation('coress', '?frontnote=coress', storage)).toBe(true)
-    expect(resolveActivation('coress', '', storage)).toBe(true)
+    expect(resolveActivation('coress', '?frontnote=8f3a2c', storage)).toBe('8f3a2c')
+    expect(resolveActivation('coress', '', storage)).toBeNull()
   })
 
-  it('ignore un lien destiné à un autre projet', () => {
-    expect(resolveActivation('coress', '?frontnote=autre', memoryStorage())).toBe(false)
+  it('reprend la clé mémorisée après validation par le serveur', () => {
+    const storage = memoryStorage()
+    rememberActivation('coress', '8f3a2c', storage)
+    expect(resolveActivation('coress', '', storage)).toBe('8f3a2c')
   })
 
   it('désactive via ?frontnote=off', () => {
     const storage = memoryStorage()
-    resolveActivation('coress', '?frontnote=coress', storage)
-    expect(resolveActivation('coress', '?frontnote=off', storage)).toBe(false)
-    expect(resolveActivation('coress', '', storage)).toBe(false)
+    rememberActivation('coress', '8f3a2c', storage)
+    expect(resolveActivation('coress', '?frontnote=off', storage)).toBeNull()
+    expect(resolveActivation('coress', '', storage)).toBeNull()
   })
 
-  it('oublie l’activation quand le projet est clos', () => {
+  it('oublie l’activation refusée (projet clos, clé périmée)', () => {
     const storage = memoryStorage()
-    resolveActivation('coress', '?frontnote=coress', storage)
+    rememberActivation('coress', '8f3a2c', storage)
     forgetActivation('coress', storage)
-    expect(resolveActivation('coress', '', storage)).toBe(false)
+    expect(resolveActivation('coress', '', storage)).toBeNull()
+  })
+
+  it('ignore et efface l’ancienne activation par le nom du projet', () => {
+    const storage = memoryStorage()
+    storage.setItem('frontnote:active:coress', '1')
+    expect(resolveActivation('coress', '', storage)).toBeNull()
+    expect(storage.getItem('frontnote:active:coress')).toBeNull()
   })
 })

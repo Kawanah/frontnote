@@ -56,7 +56,9 @@ if (Astro.request.method === 'POST') {
 const c = correction
 const revision = getProjet(db, projet.id)!.revision
 const passages = transitionsPossibles('agence', c.statut)
-const lienPage = c.url ? `${c.url}${c.url.includes('?') ? '&' : '?'}frontnote=${projet.id}` : null
+const lienPage = c.url
+  ? `${c.url}${c.url.includes('?') ? '&' : '?'}frontnote=${projet.cle_activation}`
+  : null
 const t = c.traitement
 ---
 

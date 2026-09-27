@@ -1,5 +1,6 @@
 import type { SQLInputValue } from 'node:sqlite'
 import { z } from 'zod'
+import { cleValide } from './auth'
 import { aujourdhui, maintenant } from './dates'
 import { transaction, type Db } from './db'
 import { DomainError } from './errors'
@@ -48,6 +49,7 @@ export const contexteSchema = z.object({
 export const signalementSchema = z
   .object({
     projet: projetIdSchema,
+    cle: z.string().min(1).max(100), // clé d'activation du lien ?frontnote=<clé>
     url: lienWeb,
     selecteur: z.string().min(1).max(1000),
     x: z.number().min(0).max(1),
@@ -278,6 +280,9 @@ export function creerDepuisWidget(db: Db, input: Omit<Signalement, '_honey'>): C
         410,
         `Le projet « ${projet.id} » est clos : il ne reçoit plus de retours`
       )
+    }
+    if (!cleValide(projet.cle_activation, input.cle)) {
+      throw new DomainError(403, 'Lien d’activation invalide ou périmé : demandez un nouveau lien')
     }
 
     const id = nextId(db, projet.id)

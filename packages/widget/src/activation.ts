@@ -1,29 +1,41 @@
-// Activation du widget par lien spécial : ?frontnote=<projectId>
-// Le lien active le widget et le mémorise dans le navigateur du client.
-// ?frontnote=off le désactive. Les autres visiteurs ne voient rien.
+// Activation du widget par lien spécial : ?frontnote=<clé d'activation du projet>
+// La clé est vérifiée par le serveur (checkAccess) puis mémorisée dans le navigateur
+// du client. ?frontnote=off désactive. Les autres visiteurs ne voient rien.
 
 const PARAM = 'frontnote'
 const OFF = 'off'
 
 const storageKey = (projectId: string) => `frontnote:active:${projectId}`
 
-// Projet clos : le lien mémorisé ne réactive plus le widget
-export function forgetActivation(projectId: string, storage: Storage): void {
-  storage.removeItem(storageKey(projectId))
-}
-
-export function resolveActivation(projectId: string, search: string, storage: Storage): boolean {
+// Clé candidate : celle du lien, sinon celle mémorisée. null = widget inactif.
+export function resolveActivation(
+  projectId: string,
+  search: string,
+  storage: Storage
+): string | null {
   const value = new URLSearchParams(search).get(PARAM)
 
   if (value === OFF) {
     storage.removeItem(storageKey(projectId))
-    return false
+    return null
   }
+  if (value) return value
 
-  if (value === projectId) {
-    storage.setItem(storageKey(projectId), '1')
-    return true
+  const stored = storage.getItem(storageKey(projectId))
+  // Ancien format (activation par le nom du projet) : n'active plus rien
+  if (stored === '1') {
+    storage.removeItem(storageKey(projectId))
+    return null
   }
+  return stored
+}
 
-  return storage.getItem(storageKey(projectId)) === '1'
+// Clé acceptée par le serveur : les visites suivantes n'ont plus besoin du lien
+export function rememberActivation(projectId: string, key: string, storage: Storage): void {
+  storage.setItem(storageKey(projectId), key)
+}
+
+// Projet clos ou clé refusée : le lien mémorisé ne réactive plus le widget
+export function forgetActivation(projectId: string, storage: Storage): void {
+  storage.removeItem(storageKey(projectId))
 }

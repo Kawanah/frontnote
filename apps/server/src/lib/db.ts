@@ -107,6 +107,12 @@ export const MIGRATIONS = [
   // 3 — Clôture d'un projet : corrections purgées, projet gardé (préfixe et compteur
   // réservés, contrat § 7.4), widget refusé tant que clos_le est posé
   `ALTER TABLE projets ADD COLUMN clos_le TEXT;`,
+
+  // 4 — Clé d'activation du widget : le lien ?frontnote=<clé> remplace ?frontnote=<projet>,
+  // devinable (data-project est lisible dans le code du site). Gardée en clair : le
+  // dashboard doit pouvoir réafficher le lien ; elle ne donne accès à aucune donnée.
+  `ALTER TABLE projets ADD COLUMN cle_activation TEXT;
+   UPDATE projets SET cle_activation = lower(hex(randomblob(12)));`,
 ]
 
 // Exécute fn dans une transaction : tout ou rien

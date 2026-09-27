@@ -17,10 +17,12 @@ import {
 } from './corrections'
 import { MIGRATIONS, openDatabase, userVersion, type Db } from './db'
 import { DomainError } from './errors'
-import { createProjet, getProjet, rouvrirProjet, setJetonAgent } from './projets'
+import { createProjet, getProjet, regenererCle, rouvrirProjet, setJetonAgent } from './projets'
 
+const CLE = 'cle-de-test'
 const signalement: Omit<Signalement, '_honey'> = {
   projet: 'kawanah',
+  cle: CLE,
   url: 'https://kawanah.fr/a-propos?frontnote=kawanah',
   selecteur: 'main > p:nth-of-type(2)',
   x: 0.4,
@@ -31,10 +33,16 @@ const signalement: Omit<Signalement, '_honey'> = {
   constat: 'La photo est floue',
 }
 
+// Projet de test avec une clé d'activation connue
+function creerProjet(base: Db, input: Parameters<typeof createProjet>[1]) {
+  createProjet(base, input)
+  base.prepare('UPDATE projets SET cle_activation = ? WHERE id = ?').run(CLE, input.id)
+}
+
 let db: Db
 beforeEach(() => {
   db = openDatabase(':memory:')
-  createProjet(db, { id: 'kawanah', nom: 'Kawanah Studio' })
+  creerProjet(db, { id: 'kawanah', nom: 'Kawanah Studio' })
 })
 
 const revision = () => getProjet(db, 'kawanah')!.revision
@@ -73,7 +81,7 @@ describe('création par le widget', () => {
   })
 
   it('respecte le préfixe et le premier numéro du projet', () => {
-    createProjet(db, { id: 'coress', nom: 'CoReSS', prefixe: 'CRS-', premier_numero: 12 })
+    creerProjet(db, { id: 'coress', nom: 'CoReSS', prefixe: 'CRS-', premier_numero: 12 })
     expect(creerDepuisWidget(db, { ...signalement, projet: 'coress' }).id).toBe('CRS-012')
   })
 
@@ -270,7 +278,7 @@ describe('base', () => {
   it('rouvre une base existante sans erreur ni perte', () => {
     const path = join(mkdtempSync(join(tmpdir(), 'frontnote-')), 'test.db')
     const first = openDatabase(path)
-    createProjet(first, { id: 'kawanah', nom: 'Kawanah' })
+    creerProjet(first, { id: 'kawanah', nom: 'Kawanah' })
     creerDepuisWidget(first, signalement)
     first.close()
     const again = openDatabase(path)
@@ -311,6 +319,7 @@ describe('identifiants entre projets (incident du 2026-09-27)', () => {
     v1.close()
 
     const migree = openDatabase(path)
+    migree.prepare('UPDATE projets SET cle_activation = ?').run(CLE)
     expect(userVersion(migree)).toBe(MIGRATIONS.length)
     expect(getProjet(migree, 'kawanah')).toMatchObject({
       prefixe: 'KAW-',
@@ -343,7 +352,7 @@ describe('identifiants entre projets (incident du 2026-09-27)', () => {
 
 describe('clôture d’un projet', () => {
   it('archive tout, purge ce projet seulement, refuse le widget, ne réutilise aucun numéro', () => {
-    createProjet(db, { id: 'coress', nom: 'CoReSS', prefixe: 'CRS-' })
+    creerProjet(db, { id: 'coress', nom: 'CoReSS', prefixe: 'CRS-' })
     const gardee = creerDepuisWidget(db, { ...signalement, projet: 'coress' })
     creerDepuisWidget(db, signalement)
     creerDepuisWidget(db, signalement)
@@ -365,5 +374,41 @@ describe('clôture d’un projet', () => {
 
     rouvrirProjet(db, 'kawanah')
     expect(creerDepuisWidget(db, signalement).id).toBe('REC-003')
+  })
+})
+
+describe('clé d’activation du widget', () => {
+  it('chaque projet reçoit sa propre clé aléatoire', () => {
+    createProjet(db, { id: 'coress', nom: 'CoReSS', prefixe: 'CRS-' })
+    const cle = getProjet(db, 'coress')!.cle_activation
+    expect(cle).toMatch(/^[0-9a-f]{24}$/)
+    expect(cle).not.toBe(CLE)
+  })
+
+  it('refuse un envoi sans la bonne clé (403), y compris l’ancien lien ?frontnote=<projet>', () => {
+    for (const cle of ['mauvaise', 'kawanah']) {
+      expect(erreurDe(() => creerDepuisWidget(db, { ...signalement, cle })).status).toBe(403)
+    }
+    expect(getProjet(db, 'kawanah')!.compteur).toBe(0)
+  })
+
+  it('régénérer la clé coupe les anciens liens', () => {
+    const nouvelle = regenererCle(db, 'kawanah')
+    expect(erreurDe(() => creerDepuisWidget(db, signalement)).status).toBe(403)
+    expect(creerDepuisWidget(db, { ...signalement, cle: nouvelle }).id).toBe('REC-001')
+  })
+
+  it('migration 4 : une clé pour chaque projet existant', () => {
+    const path = join(mkdtempSync(join(tmpdir(), 'frontnote-')), 'v3.db')
+    const v3 = new DatabaseSync(path)
+    MIGRATIONS.slice(0, 3).forEach((sql) => v3.exec(sql))
+    v3.exec('PRAGMA user_version = 3')
+    v3.prepare(
+      `INSERT INTO projets (id, nom, natures, mis_a_jour_le, cree_le) VALUES ('a', 'A', '[]', 'x', 'x')`
+    ).run()
+    v3.close()
+    const migree = openDatabase(path)
+    expect(getProjet(migree, 'a')!.cle_activation).toMatch(/^[0-9a-f]{24}$/)
+    migree.close()
   })
 })

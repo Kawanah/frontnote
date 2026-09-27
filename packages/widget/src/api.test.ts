@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { pageUrl, postComment, projectOpen, type CommentPayload } from './api'
+import { checkAccess, pageUrl, postComment, type CommentPayload } from './api'
 
 const payload: CommentPayload = {
   projet: 'coress',
+  cle: '8f3a2c',
   url: 'https://coress.fr/',
   selecteur: 'h1',
   x: 0.5,
@@ -40,31 +41,36 @@ describe('postComment', () => {
 
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')))
     await expect(postComment('https://api.test', payload)).rejects.toThrow(/Connexion/)
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 403 })))
+    await expect(postComment('https://api.test', payload)).rejects.toThrow(/nouveau lien/)
   })
 })
 
-describe('projectOpen', () => {
+describe('checkAccess', () => {
   const repond = (body: unknown, status = 200) =>
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(body, { status })))
 
-  it('interroge /api/projets/:projet/etat', async () => {
-    const fetch = vi.fn().mockResolvedValue(Response.json({ ouvert: true }))
+  it('fait vérifier la clé par /api/projets/:projet/etat', async () => {
+    const fetch = vi.fn().mockResolvedValue(Response.json({ ouvert: true, active: true }))
     vi.stubGlobal('fetch', fetch)
-    expect(await projectOpen('https://api.test/', 'coress')).toBe(true)
-    expect(fetch).toHaveBeenCalledWith('https://api.test/api/projets/coress/etat')
+    expect(await checkAccess('https://api.test/', 'coress', '8f3a2c')).toBe('ok')
+    expect(fetch).toHaveBeenCalledWith('https://api.test/api/projets/coress/etat?cle=8f3a2c')
   })
 
-  it('projet clos ou inconnu : le widget ne s’affiche pas', async () => {
-    repond({ ouvert: false })
-    expect(await projectOpen('https://api.test', 'coress')).toBe(false)
-    repond({ ouvert: false }, 404)
-    expect(await projectOpen('https://api.test', 'coress')).toBe(false)
+  it('clé refusée, projet clos ou inconnu : le widget ne s’affiche pas', async () => {
+    repond({ ouvert: true, active: false })
+    expect(await checkAccess('https://api.test', 'coress', 'x')).toBe('refused')
+    repond({ ouvert: false, active: false })
+    expect(await checkAccess('https://api.test', 'coress', 'x')).toBe('refused')
+    repond({ ouvert: false, active: false }, 404)
+    expect(await checkAccess('https://api.test', 'coress', 'x')).toBe('refused')
   })
 
-  it('serveur injoignable ou en erreur : le widget s’affiche quand même', async () => {
+  it('serveur injoignable ou en erreur : l’envoi tranchera', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')))
-    expect(await projectOpen('https://api.test', 'coress')).toBe(true)
+    expect(await checkAccess('https://api.test', 'coress', 'x')).toBe('unreachable')
     repond({}, 503)
-    expect(await projectOpen('https://api.test', 'coress')).toBe(true)
+    expect(await checkAccess('https://api.test', 'coress', 'x')).toBe('unreachable')
   })
 })
