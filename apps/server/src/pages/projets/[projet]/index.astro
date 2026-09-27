@@ -113,12 +113,29 @@ Contrat : Contrat-corrections-agents.md (statuts, champs, règles du § 7).
 - Mettre à jour une correction (champs du § 5 uniquement, avec la révision lue) :
   curl -s -X PATCH -H "Authorization: Bearer $FRONTNOTE_TOKEN" -H "Content-Type: application/json" \\
     -d '{"revision": 12, "statut": "corrigee", "traitement": {"branche": "...", "resume": "...", "verification": "..."}}' \\
-    "${origine}/api/corrections/REC-001"
+    "${origine}/api/corrections/${projet.prefixe}001"
 - FRONTNOTE_TOKEN est dans .env, jamais commité.
 - Réponse 409 (révision périmée) : relire les corrections puis réessayer.
 - Ne jamais passer une correction en « validee ».`
 
 const script = `<script src="${origine}/frontnote.js" data-project="${projet.id}" data-api="${origine}" defer></script>`
+// Début de projet : consigne à coller dans la session Claude Code du site
+const installation = `## Installer FrontNote sur ce site (projet « ${projet.id} »)
+
+FrontNote recueille les retours du client directement sur le site. Installer le widget, dans une seule PR :
+
+1. Ajouter cette balise une seule fois, dans le layout commun à toutes les pages, juste avant </body> (site Astro : ajouter is:inline dans la balise) :
+   ${script}
+2. Si le site a une Content-Security-Policy : ajouter ${origine} dans script-src ET connect-src. Vérifier que la CSP s'applique aussi aux pages pré-générées.
+3. Ajouter au CLAUDE.md du site la section « Corrections (FrontNote) » ci-dessous, telle quelle.
+4. Vérifier que .env est ignoré par git. Ne pas inventer FRONTNOTE_TOKEN : l'humain l'ajoute lui-même au .env (jeton agent généré dans le dashboard FrontNote).
+5. Vérifier le build, ouvrir la PR. Ne pas pousser sur la branche principale sans accord : c'est une mise en ligne.
+
+Le lien d'accès du client (?frontnote=…) ne va jamais dans le code.
+
+--- Section à ajouter au CLAUDE.md du site ---
+
+${consigne}`
 // Fin de projet : consigne pour que l'agent retire FrontNote du site
 const retrait = `## Retirer FrontNote du site (projet « ${projet.id} » clos)
 
@@ -394,6 +411,23 @@ connect-src … ${origine}`
         <p class="text-xs text-muted">
           Site Astro : ajouter <span class="font-mono">is:inline</span> dans la balise.
         </p>
+        <details class="rounded-md border border-line p-3 text-sm">
+          <summary class="cursor-pointer font-semibold">
+            Consigne pour l'agent : installer le widget
+          </summary>
+          <p class="mt-2 text-muted">
+            À coller dans une session Claude Code ouverte sur le dépôt du site. Elle contient la
+            balise, la CSP et la section à ajouter au CLAUDE.md. Le jeton agent, vous l'ajoutez
+            vous-même au .env du site.
+          </p>
+          <pre
+            id="installation"
+            class="mt-2 max-h-72 overflow-auto rounded-md bg-paper p-3 font-mono text-xs whitespace-pre-wrap"
+          >{installation}</pre>
+          <button type="button" class="bouton mt-2" data-copier="#installation">
+            Copier la consigne
+          </button>
+        </details>
         <div class="space-y-2 rounded-md border border-line p-3 text-sm">
           <p class="font-semibold">Lien d'accès pour le client</p>
           <p class="text-muted">
