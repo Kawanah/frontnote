@@ -60,3 +60,10 @@ export function statutDepuisForm(form: FormData): Record<string, unknown> {
   if (note && ['refusee', 'doublon', 'hors_perimetre'].includes(statut ?? '')) patch.note = note
   return patch
 }
+
+// Champs repliés dans « Détails pour l'agent » sur la fiche. Une erreur qui en
+// cite un (nom technique ou libellé) doit rouvrir le bloc, sinon elle reste cachée.
+const CHAMPS_DETAILS =
+  /\b(lieu_correction|lieu de correction|lot|page|appareil|zone|etat|source_texte|source_lien|source_lu_le|pieces_jointes|test_lie|ligne_suivi)\b/
+
+export const erreurSurDetails = (erreur: string) => CHAMPS_DETAILS.test(erreur)

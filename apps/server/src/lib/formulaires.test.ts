@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { miseAJourAgenceSchema } from './corrections'
-import { qualificationDepuisForm, statutDepuisForm } from './formulaires'
+import { erreurSurDetails, qualificationDepuisForm, statutDepuisForm } from './formulaires'
 
 const form = (entries: Record<string, string>) => {
   const f = new FormData()
@@ -55,5 +55,18 @@ describe('statutDepuisForm', () => {
       historique_note: 'Déjà traité',
       note: 'Déjà traité',
     })
+  })
+})
+
+describe('erreurs sur les champs repliés de la fiche', () => {
+  it('rouvrent « Détails pour l’agent » quand elles les citent', () => {
+    expect(
+      erreurSurDetails('Pour passer en « À traiter », il manque : gravité, lieu de correction')
+    ).toBe(true)
+    expect(erreurSurDetails('source_texte.lien : URL invalide')).toBe(true)
+    expect(erreurSurDetails('ligne_suivi : nombre attendu')).toBe(true)
+    expect(erreurSurDetails('Pour passer en « À traiter », il manque : gravité, attendu')).toBe(
+      false
+    )
   })
 })
