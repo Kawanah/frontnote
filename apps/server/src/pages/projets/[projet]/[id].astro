@@ -1,5 +1,6 @@
 ---
 import Badge from '../../../components/Badge.astro'
+import NavigationFiche from '../../../components/NavigationFiche.astro'
 import Layout from '../../../layouts/Layout.astro'
 import { dateCourte, dateHeure, TON_GRAVITE, TON_STATUT } from '../../../lib/affichage'
 import {
@@ -106,31 +107,14 @@ const texteClient = c.nature === 'texte' || Boolean(c.texte_attendu)
 ---
 
 <Layout title={`${c.id} · ${projet.nom}`} fil={[[projet.nom, liste], [c.id]]}>
-  <nav class="mb-4 flex flex-wrap items-center justify-between gap-2" aria-label="Navigation">
-    <a href={liste} class="bouton-principal">
-      ← Liste
-    </a>
-    <div class="flex gap-2">
-      {precedente ? (
-        <a href={lienFiche(precedente)} class="bouton" rel="prev">
-          ← Précédente
-        </a>
-      ) : (
-        <span class="bouton cursor-not-allowed opacity-40" aria-disabled="true">
-          ← Précédente
-        </span>
-      )}
-      {suivante ? (
-        <a href={lienFiche(suivante)} class="bouton" rel="next">
-          Suivante →
-        </a>
-      ) : (
-        <span class="bouton cursor-not-allowed opacity-40" aria-disabled="true">
-          Suivante →
-        </span>
-      )}
-    </div>
-  </nav>
+  <div class="mb-4">
+    <NavigationFiche
+      liste={liste}
+      precedente={precedente && lienFiche(precedente)}
+      suivante={suivante && lienFiche(suivante)}
+      label="Navigation"
+    />
+  </div>
 
   {traitee && (
     <p class="mb-4 rounded-md bg-ok-soft px-4 py-2 text-sm text-ok" role="status">
@@ -533,5 +517,14 @@ const texteClient = c.nature === 'texte' || Boolean(c.texte_attendu)
         </details>
       )}
     </aside>
+  </div>
+
+  <div class="mt-8 border-t border-line pt-6">
+    <NavigationFiche
+      liste={liste}
+      precedente={precedente && lienFiche(precedente)}
+      suivante={suivante && lienFiche(suivante)}
+      label="Navigation (bas de page)"
+    />
   </div>
 </Layout>

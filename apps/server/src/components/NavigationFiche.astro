@@ -1,0 +1,38 @@
+---
+// Navigation d'une fiche : retour à la liste (même filtre), précédente, suivante.
+// Affichée en haut et en bas de la fiche, pour ne pas avoir à remonter.
+interface Props {
+  liste: string
+  precedente?: string
+  suivante?: string
+  label: string
+}
+
+const { liste, precedente, suivante, label } = Astro.props
+---
+
+<nav class="flex flex-wrap items-center justify-between gap-2" aria-label={label}>
+  <a href={liste} class="bouton-principal">
+    ← Retour à la liste des demandes
+  </a>
+  <div class="flex gap-2">
+    {precedente ? (
+      <a href={precedente} class="bouton" rel="prev">
+        ← Précédente
+      </a>
+    ) : (
+      <span class="bouton cursor-not-allowed opacity-40" aria-disabled="true">
+        ← Précédente
+      </span>
+    )}
+    {suivante ? (
+      <a href={suivante} class="bouton" rel="next">
+        Suivante →
+      </a>
+    ) : (
+      <span class="bouton cursor-not-allowed opacity-40" aria-disabled="true">
+        Suivante →
+      </span>
+    )}
+  </div>
+</nav>
