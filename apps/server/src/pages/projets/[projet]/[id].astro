@@ -10,7 +10,12 @@ import {
   transitionsPossibles,
 } from '../../../lib/corrections'
 import { DomainError } from '../../../lib/errors'
-import { qualificationDepuisForm, statutDepuisForm } from '../../../lib/formulaires'
+import { RAISONS_REFUS } from '../../../lib/actions'
+import {
+  erreurSurDetails,
+  qualificationDepuisForm,
+  statutDepuisForm,
+} from '../../../lib/formulaires'
 import { avecParam, filtreDepuisParams, requeteFiltre, voisines } from '../../../lib/navigation'
 import { getProjet } from '../../../lib/projets'
 import { getDb } from '../../../lib/runtime'
@@ -69,6 +74,18 @@ if (Astro.request.method === 'POST') {
       if (!(err instanceof DomainError)) throw err
       erreur = err.message
       enregistre = false
+      // « À traiter » refusé faute de champs : la qualification saisie n'est pas perdue,
+      // elle est enregistrée sans changer le statut (mêmes règles via mettreAJour)
+      if (parsed.data.statut === 'a_traiter' && err.message.startsWith('Pour passer')) {
+        const { statut: _statut, ...sansStatut } = parsed.data
+        try {
+          mettreAJour(db, correction.id, 'agence', sansStatut)
+          erreur = `Qualification enregistrée. ${err.message}`
+        } catch (err2) {
+          if (!(err2 instanceof DomainError)) throw err2
+          erreur = err2.message
+        }
+      }
     }
   }
   correction = getCorrection(db, correction.id)!
@@ -81,6 +98,11 @@ const lienPage = c.url
   ? `${c.url}${c.url.includes('?') ? '&' : '?'}frontnote=${projet.cle_activation}`
   : null
 const t = c.traitement
+// Un seul bouton d'enregistrement : il fait aussi passer une nouvelle demande « À traiter »
+const versTraiter = c.statut === 'nouvelle' && passages.includes('a_traiter')
+// Bloc replié : ouvert d'office si l'erreur porte sur un de ses champs
+const detailsOuverts = erreur !== '' && erreurSurDetails(erreur)
+const texteClient = c.nature === 'texte' || Boolean(c.texte_attendu)
 ---
 
 <Layout title={`${c.id} · ${projet.nom}`} fil={[[projet.nom, liste], [c.id]]}>
@@ -129,11 +151,6 @@ const t = c.traitement
         {c.navigateur && <> · {c.navigateur}</>}
       </p>
     </div>
-    {lienPage && (
-      <a href={lienPage} target="_blank" class="bouton">
-        Voir sur la page
-      </a>
-    )}
   </div>
 
   {enregistre && !erreur && (
@@ -151,15 +168,41 @@ const t = c.traitement
     <div class="space-y-6">
       <section class="carte space-y-4">
         <h2 class="font-bold">Retour du client</h2>
+        <p class="text-sm">
+          <span class="etiquette inline">Zone :</span> {c.zone}
+        </p>
+        {texteClient ? (
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <p class="etiquette">Texte attendu, mot pour mot (non modifiable)</p>
+              <p class="rounded-md border border-ink bg-surface p-3 whitespace-pre-wrap">
+                {c.texte_attendu}
+              </p>
+            </div>
+            <div>
+              <p class="etiquette">Texte actuel</p>
+              <p class="rounded-md bg-paper p-3 text-sm whitespace-pre-wrap text-muted">
+                {c.texte_actuel || '(vide)'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          c.constat && (
+            <blockquote class="rounded-md border-l-4 border-ink bg-paper p-3 whitespace-pre-wrap">
+              {c.constat}
+            </blockquote>
+          )
+        )}
+        <div class="flex flex-wrap items-center gap-3 rounded-md bg-paper p-3 text-sm">
+          <span class="etiquette inline">Page :</span>
+          <span class="min-w-0 flex-1 font-mono break-all">{c.page}</span>
+          {lienPage && (
+            <a href={lienPage} target="_blank" class="bouton-principal whitespace-nowrap">
+              Voir sur la page ↗
+            </a>
+          )}
+        </div>
         <dl class="grid gap-3 text-sm sm:grid-cols-2">
-          <div>
-            <dt class="etiquette">Page</dt>
-            <dd class="font-mono break-all">{c.page}</dd>
-          </div>
-          <div>
-            <dt class="etiquette">Zone</dt>
-            <dd>{c.zone}</dd>
-          </div>
           {c.type_client && (
             <div>
               <dt class="etiquette">Type choisi par le client</dt>
@@ -179,22 +222,6 @@ const t = c.traitement
             </div>
           )}
         </dl>
-        {c.nature === 'texte' || c.texte_attendu ? (
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div>
-              <p class="etiquette">Texte actuel</p>
-              <p class="rounded-md bg-paper p-3 text-sm whitespace-pre-wrap">
-                {c.texte_actuel || '(vide)'}
-              </p>
-            </div>
-            <div>
-              <p class="etiquette">Texte attendu, mot pour mot (non modifiable)</p>
-              <p class="rounded-md border border-ink bg-surface p-3 text-sm whitespace-pre-wrap">
-                {c.texte_attendu}
-              </p>
-            </div>
-          </div>
-        ) : null}
         {c.selecteur && (
           <p class="text-xs text-muted">
             Sélecteur : <span class="font-mono break-all">{c.selecteur}</span>
@@ -228,43 +255,6 @@ const t = c.traitement
               ))}
             </select>
           </label>
-          <label>
-            <span class="etiquette">Lieu de correction</span>
-            <select class="champ" name="lieu_correction">
-              <option value="">·</option>
-              {LIEUX.map((l) => (
-                <option value={l} selected={c.lieu_correction === l}>
-                  {LIEU_LABELS[l]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span class="etiquette">Lot</span>
-            <input class="champ" name="lot" value={c.lot ?? ''} placeholder="recette-2026-09-26" />
-          </label>
-          <label>
-            <span class="etiquette">Page</span>
-            <input class="champ font-mono" name="page" value={c.page} required />
-          </label>
-          <label>
-            <span class="etiquette">Appareil</span>
-            <select class="champ" name="appareil">
-              {APPAREILS.map((a) => (
-                <option value={a} selected={c.appareil === a}>
-                  {APPAREIL_LABELS[a]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label class="sm:col-span-2">
-            <span class="etiquette">Zone</span>
-            <input class="champ" name="zone" value={c.zone} required />
-          </label>
-          <label class="sm:col-span-2">
-            <span class="etiquette">État (appli : connecté, rôle, données)</span>
-            <input class="champ" name="etat" value={c.etat ?? ''} />
-          </label>
           <label class="sm:col-span-2">
             <span class="etiquette">Constat</span>
             <textarea class="champ" name="constat" rows="2">{c.constat ?? ''}</textarea>
@@ -273,56 +263,111 @@ const t = c.traitement
             <span class="etiquette">Attendu</span>
             <textarea class="champ" name="attendu" rows="2">{c.attendu ?? ''}</textarea>
           </label>
-          <label>
-            <span class="etiquette">Source du texte (lien Google Doc)</span>
-            <input class="champ" type="url" name="source_lien" value={c.source_texte?.lien ?? ''} />
-          </label>
-          <label>
-            <span class="etiquette">Lu le</span>
-            <input
-              class="champ"
-              type="date"
-              name="source_lu_le"
-              value={c.source_texte?.lu_le ?? ''}
-            />
-          </label>
-          <label class="sm:col-span-2">
-            <span class="etiquette">Pièces jointes (un lien par ligne)</span>
-            <textarea
-              class="champ font-mono text-xs"
-              name="pieces_jointes"
-              rows="2"
-            >{c.pieces_jointes.join('\n')}</textarea>
-          </label>
-          <label>
-            <span class="etiquette">Test lié</span>
-            <input
-              class="champ font-mono"
-              name="test_lie"
-              value={c.test_lie ?? ''}
-              placeholder="LEG-04"
-            />
-          </label>
-          <label>
-            <span class="etiquette">Ligne de suivi</span>
-            <input
-              class="champ"
-              type="number"
-              min="1"
-              name="ligne_suivi"
-              value={c.ligne_suivi ?? ''}
-            />
-          </label>
           <label class="sm:col-span-2">
             <span class="etiquette">Note de l'agence</span>
             <textarea class="champ" name="note" rows="2">{c.note ?? ''}</textarea>
           </label>
-          <div class="flex flex-wrap gap-2 sm:col-span-2">
-            <button class="bouton">Enregistrer</button>
-            {passages.includes('a_traiter') && (
+
+          <details class="rounded-md border border-line p-3 sm:col-span-2" open={detailsOuverts}>
+            <summary class="cursor-pointer text-sm font-semibold">Détails pour l'agent</summary>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+              <label>
+                <span class="etiquette">Lieu de correction</span>
+                <select class="champ" name="lieu_correction">
+                  <option value="">·</option>
+                  {LIEUX.map((l) => (
+                    <option value={l} selected={c.lieu_correction === l}>
+                      {LIEU_LABELS[l]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span class="etiquette">Lot</span>
+                <input
+                  class="champ"
+                  name="lot"
+                  value={c.lot ?? ''}
+                  placeholder="recette-2026-09-26"
+                />
+              </label>
+              <label>
+                <span class="etiquette">Page</span>
+                <input class="champ font-mono" name="page" value={c.page} />
+              </label>
+              <label>
+                <span class="etiquette">Appareil</span>
+                <select class="champ" name="appareil">
+                  {APPAREILS.map((a) => (
+                    <option value={a} selected={c.appareil === a}>
+                      {APPAREIL_LABELS[a]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label class="sm:col-span-2">
+                <span class="etiquette">Zone</span>
+                <input class="champ" name="zone" value={c.zone} />
+              </label>
+              <label class="sm:col-span-2">
+                <span class="etiquette">État (appli : connecté, rôle, données)</span>
+                <input class="champ" name="etat" value={c.etat ?? ''} />
+              </label>
+              <label>
+                <span class="etiquette">Source du texte (lien Google Doc)</span>
+                <input
+                  class="champ"
+                  type="url"
+                  name="source_lien"
+                  value={c.source_texte?.lien ?? ''}
+                />
+              </label>
+              <label>
+                <span class="etiquette">Lu le</span>
+                <input
+                  class="champ"
+                  type="date"
+                  name="source_lu_le"
+                  value={c.source_texte?.lu_le ?? ''}
+                />
+              </label>
+              <label class="sm:col-span-2">
+                <span class="etiquette">Pièces jointes (un lien par ligne)</span>
+                <textarea
+                  class="champ font-mono text-xs"
+                  name="pieces_jointes"
+                  rows="2"
+                >{c.pieces_jointes.join('\n')}</textarea>
+              </label>
+              <label>
+                <span class="etiquette">Test lié</span>
+                <input
+                  class="champ font-mono"
+                  name="test_lie"
+                  value={c.test_lie ?? ''}
+                  placeholder="LEG-04"
+                />
+              </label>
+              <label>
+                <span class="etiquette">Ligne de suivi</span>
+                <input
+                  class="champ"
+                  type="number"
+                  min="1"
+                  name="ligne_suivi"
+                  value={c.ligne_suivi ?? ''}
+                />
+              </label>
+            </div>
+          </details>
+
+          <div class="sm:col-span-2">
+            {versTraiter ? (
               <button class="bouton-principal" name="statut" value="a_traiter">
-                Enregistrer et passer « À traiter »
+                Enregistrer et passer à traiter
               </button>
+            ) : (
+              <button class="bouton-principal">Enregistrer</button>
             )}
           </div>
         </form>
@@ -349,6 +394,30 @@ const t = c.traitement
             ></textarea>
             <button class="bouton w-full">Appliquer</button>
           </form>
+          {passages.includes('refusee') && (
+            <form method="post" class="mt-4 space-y-2 border-t border-line pt-4">
+              <input type="hidden" name="_action" value="statut" />
+              <input type="hidden" name="revision" value={revision} />
+              <input type="hidden" name="statut" value="refusee" />
+              <label class="block">
+                <span class="etiquette">Raccourci : refuser (raison)</span>
+                <input
+                  class="champ"
+                  name="historique_note"
+                  list="raisons-refus"
+                  required
+                  maxlength="500"
+                  placeholder="Essai de l'agence…"
+                />
+              </label>
+              <datalist id="raisons-refus">
+                {RAISONS_REFUS.map((r) => (
+                  <option value={r} />
+                ))}
+              </datalist>
+              <button class="bouton w-full border-danger text-danger">Refuser</button>
+            </form>
+          )}
         </section>
       )}
 

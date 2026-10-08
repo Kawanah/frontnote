@@ -283,9 +283,9 @@ connect-src … ${origine}`
           <tr>
             <th class="px-4 py-3 font-semibold">Id</th>
             <th class="px-4 py-3 font-semibold">Statut</th>
-            <th class="px-4 py-3 font-semibold">Page et zone</th>
+            <th class="hidden px-4 py-3 font-semibold lg:table-cell">Page et zone</th>
             <th class="px-4 py-3 font-semibold">Constat</th>
-            <th class="px-4 py-3 font-semibold">Date</th>
+            <th class="hidden px-4 py-3 font-semibold lg:table-cell">Date</th>
             <th class="px-4 py-3 font-semibold">
               <span class="sr-only">Actions</span>
             </th>
@@ -313,20 +313,23 @@ connect-src … ${origine}`
                     {c.gravite && <> · {GRAVITE_LABELS[c.gravite]}</>}
                   </p>
                 </td>
-                <td class="max-w-56 px-4 py-3">
+                <td class="hidden max-w-56 px-4 py-3 lg:table-cell">
                   <p class="truncate font-mono text-xs">{c.page}</p>
                   <p class="truncate text-muted">{c.zone}</p>
                 </td>
-                <td class="max-w-72 min-w-48 px-4 py-3">
+                <td class="max-w-72 min-w-40 px-4 py-3">
                   <p class="line-clamp-2">
                     {c.nature === 'texte' || c.texte_attendu ? c.texte_attendu : c.constat}
                   </p>
+                  <p class="mt-1 truncate text-xs text-muted lg:hidden">
+                    <span class="font-mono">{c.page}</span> · {c.zone}
+                  </p>
                 </td>
-                <td class="px-4 py-3 whitespace-nowrap text-muted">
+                <td class="hidden px-4 py-3 whitespace-nowrap text-muted lg:table-cell">
                   {dateCourte(c.date_signalement)}
                 </td>
                 <td class="px-4 py-3">
-                  <div class="flex flex-wrap items-start justify-end gap-2">
+                  <div class="flex flex-col items-end gap-2 xl:flex-row xl:items-start">
                     {actions.aTraiter === 'bouton' && (
                       <form method="post">
                         <input type="hidden" name="_action" value="statut" />
