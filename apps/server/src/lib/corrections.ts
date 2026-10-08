@@ -451,6 +451,11 @@ function champsManquants(vers: Statut, c: Correction, role: 'agence' | 'agent'):
     .map(([k]) => LIBELLES_CHAMPS[k] ?? k)
 }
 
+// Champs qui manquent pour que l'agence pose ce statut (affichage du dashboard ;
+// mettreAJour refait la vérification à l'écriture)
+export const manquantsPour = (vers: Statut, c: Correction): string[] =>
+  champsManquants(vers, c, 'agence')
+
 // --- Mise à jour par l'agence ou l'agent -------------------------------------
 
 export function mettreAJour(

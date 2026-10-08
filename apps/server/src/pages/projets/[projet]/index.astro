@@ -1,9 +1,19 @@
 ---
 import Badge from '../../../components/Badge.astro'
 import Layout from '../../../layouts/Layout.astro'
-import { dateCourte, TON_GRAVITE, TON_STATUT } from '../../../lib/affichage'
+import { dateCourte, TON_STATUT } from '../../../lib/affichage'
 import { nouveauJeton } from '../../../lib/auth'
-import { clore, exporterProjet, listCorrections } from '../../../lib/corrections'
+import { actionsRapides, RAISONS_REFUS } from '../../../lib/actions'
+import {
+  clore,
+  exporterProjet,
+  getCorrection,
+  listCorrections,
+  mettreAJour,
+  miseAJourAgenceSchema,
+} from '../../../lib/corrections'
+import { DomainError } from '../../../lib/errors'
+import { statutDepuisForm } from '../../../lib/formulaires'
 import { filtreDepuisParams, requeteFiltre } from '../../../lib/navigation'
 import {
   getProjet,
@@ -15,13 +25,13 @@ import {
 import { getDb } from '../../../lib/runtime'
 import {
   APPAREIL_LABELS,
-  APPAREILS,
   GRAVITE_LABELS,
   NATURE_LABELS,
   NATURES,
   STATUT_LABELS,
   STATUTS,
   type Nature,
+  type Statut,
 } from '../../../lib/vocabulaire'
 
 const db = getDb()
@@ -31,6 +41,7 @@ if (!projet) return new Response('Projet inconnu', { status: 404 })
 let jetonAffiche = ''
 let erreur = ''
 let erreurCloture = ''
+let erreurListe = ''
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData()
@@ -63,6 +74,25 @@ if (Astro.request.method === 'POST') {
   } else if (action === 'rouvrir') {
     rouvrirProjet(db, projet.id)
     return Astro.redirect(`/projets/${projet.id}`)
+  } else if (action === 'statut') {
+    // Bouton rapide de la liste : mêmes règles que la fiche (révision, droits, historique)
+    const id = String(form.get('id') ?? '')
+    const parsed = miseAJourAgenceSchema.safeParse(statutDepuisForm(form))
+    if (getCorrection(db, id)?.projet !== projet.id) {
+      erreurListe = `Demande ${id} introuvable dans ce projet.`
+    } else if (!parsed.success) {
+      erreurListe = `${id} : ${parsed.error.issues.map((i) => i.message).join(' ; ')}`
+    } else {
+      try {
+        mettreAJour(db, id, 'agence', parsed.data)
+        const retour = new URLSearchParams(requeteFiltre(Astro.url.searchParams))
+        retour.set('maj', `${id}:${parsed.data.statut}`)
+        return Astro.redirect(`/projets/${projet.id}?${retour}`)
+      } catch (err) {
+        if (!(err instanceof DomainError)) throw err
+        erreurListe = `${id} : ${err.message}`
+      }
+    }
   }
 }
 const supprimees = Astro.url.searchParams.get('clos')
@@ -74,15 +104,19 @@ const filtre = filtreDepuisParams(params)
 const requete = requeteFiltre(params)
 // Demande que l'on vient de traiter depuis sa fiche (dernière de la liste)
 const fait = params.get('fait')
+// Bouton rapide appliqué : « KAW-003:refusee »
+const [majId, majStatut] = (params.get('maj') ?? '').split(':')
+const maj =
+  majId && STATUTS.includes(majStatut as Statut) ? { id: majId, statut: majStatut as Statut } : null
+// Filtres retirés de l'écran mais gardés dans l'adresse (export agent, liens existants)
+const autresFiltres = [
+  filtre.nature && `nature « ${NATURE_LABELS[filtre.nature]} »`,
+  filtre.appareil && `écran « ${APPAREIL_LABELS[filtre.appareil]} »`,
+  filtre.lot && `lot « ${filtre.lot} »`,
+].filter(Boolean)
+const seulStatut = choixStatut ? `?statut=${encodeURIComponent(choixStatut)}` : ''
 
 const corrections = listCorrections(db, projet.id, filtre)
-const lots = (
-  db
-    .prepare(
-      'SELECT DISTINCT lot FROM corrections WHERE projet = ? AND lot IS NOT NULL ORDER BY lot'
-    )
-    .all(projet.id) as { lot: string }[]
-).map((r) => r.lot)
 
 // Vue agent : même donnée, au format du contrat
 const exportAgent = JSON.stringify(exporterProjet(db, projet.id, filtre), null, 2)
@@ -188,10 +222,21 @@ connect-src … ${origine}`
     </p>
   )}
 
-  <form method="get" class="carte mb-4 grid gap-3 sm:grid-cols-5 sm:items-end">
+  {maj && (
+    <p class="mb-4 rounded-md bg-ok-soft px-4 py-2 text-sm text-ok" role="status">
+      <span class="font-mono">{maj.id}</span> : {STATUT_LABELS[maj.statut]}.
+    </p>
+  )}
+  {erreurListe && (
+    <p class="mb-4 rounded-md bg-danger-soft px-4 py-2 text-sm text-danger" role="alert">
+      {erreurListe}
+    </p>
+  )}
+
+  <form method="get" class="mb-4 flex flex-wrap items-end gap-3" id="filtre">
     <label>
-      <span class="etiquette">Statut</span>
-      <select class="champ" name="statut">
+      <span class="etiquette">Afficher</span>
+      <select class="champ" name="statut" data-auto>
         <option value="" selected={choixStatut === ''}>
           Ouvertes
         </option>
@@ -205,46 +250,31 @@ connect-src … ${origine}`
         ))}
       </select>
     </label>
-    <label>
-      <span class="etiquette">Nature</span>
-      <select class="champ" name="nature">
-        <option value="">Toutes</option>
-        {projet.natures.map((n) => (
-          <option value={n} selected={filtre.nature === n}>
-            {NATURE_LABELS[n]}
-          </option>
-        ))}
-      </select>
-    </label>
-    <label>
-      <span class="etiquette">Appareil</span>
-      <select class="champ" name="appareil">
-        <option value="">Tous</option>
-        {APPAREILS.map((a) => (
-          <option value={a} selected={filtre.appareil === a}>
-            {APPAREIL_LABELS[a]}
-          </option>
-        ))}
-      </select>
-    </label>
-    <label>
-      <span class="etiquette">Lot</span>
-      <select class="champ" name="lot">
-        <option value="">Tous</option>
-        {lots.map((l) => (
-          <option value={l} selected={filtre.lot === l}>
-            {l}
-          </option>
-        ))}
-      </select>
-    </label>
-    <button class="bouton">Filtrer</button>
+    {filtre.nature && <input type="hidden" name="nature" value={filtre.nature} />}
+    {filtre.appareil && <input type="hidden" name="appareil" value={filtre.appareil} />}
+    {filtre.lot && <input type="hidden" name="lot" value={filtre.lot} />}
+    <noscript>
+      <button class="bouton">Filtrer</button>
+    </noscript>
+    {autresFiltres.length > 0 && (
+      <p class="pb-2 text-sm text-muted">
+        Filtré aussi par {autresFiltres.join(', ')} ·{' '}
+        <a href={`/projets/${projet.id}${seulStatut}`} class="underline">
+          retirer
+        </a>
+      </p>
+    )}
   </form>
+
+  <datalist id="raisons-refus">
+    {RAISONS_REFUS.map((r) => (
+      <option value={r} />
+    ))}
+  </datalist>
 
   {corrections.length === 0 ? (
     <p class="carte text-muted">
-      Aucune correction pour ce filtre. Les retours du client arrivent ici dès qu'il utilise le
-      widget.
+      Aucune demande pour ce filtre. Les retours du client arrivent ici dès qu'il utilise le widget.
     </p>
   ) : (
     <div class="overflow-x-auto rounded-lg border border-line bg-surface">
@@ -255,49 +285,103 @@ connect-src … ${origine}`
             <th class="px-4 py-3 font-semibold">Statut</th>
             <th class="px-4 py-3 font-semibold">Page et zone</th>
             <th class="px-4 py-3 font-semibold">Constat</th>
-            <th class="px-4 py-3 font-semibold">Nature</th>
-            <th class="px-4 py-3 font-semibold">Gravité</th>
-            <th class="px-4 py-3 font-semibold">Appareil</th>
             <th class="px-4 py-3 font-semibold">Date</th>
+            <th class="px-4 py-3 font-semibold">
+              <span class="sr-only">Actions</span>
+            </th>
           </tr>
         </thead>
         <tbody>
-          {corrections.map((c) => (
-            <tr class="border-b border-line last:border-0 hover:bg-paper">
-              <td class="px-4 py-3 font-mono whitespace-nowrap">
-                <a
-                  href={`/projets/${projet.id}/${c.id}${requete}`}
-                  class="font-semibold underline-offset-2 hover:underline"
-                >
-                  {c.id}
-                </a>
-              </td>
-              <td class="px-4 py-3">
-                <Badge ton={TON_STATUT[c.statut]} label={STATUT_LABELS[c.statut]} />
-              </td>
-              <td class="max-w-56 px-4 py-3">
-                <p class="truncate font-mono text-xs">{c.page}</p>
-                <p class="truncate text-muted">{c.zone}</p>
-              </td>
-              <td class="max-w-72 min-w-48 px-4 py-3">
-                <p class="line-clamp-2">{c.nature === 'texte' ? c.texte_attendu : c.constat}</p>
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap">
-                {c.nature ? NATURE_LABELS[c.nature] : <span class="text-accent">À qualifier</span>}
-              </td>
-              <td class="px-4 py-3">
-                {c.gravite ? (
-                  <Badge ton={TON_GRAVITE[c.gravite]} label={GRAVITE_LABELS[c.gravite]} />
-                ) : (
-                  <span class="text-muted">·</span>
-                )}
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap">{APPAREIL_LABELS[c.appareil]}</td>
-              <td class="px-4 py-3 whitespace-nowrap text-muted">
-                {dateCourte(c.date_signalement)}
-              </td>
-            </tr>
-          ))}
+          {corrections.map((c) => {
+            const actions = actionsRapides(c)
+            const fiche = `/projets/${projet.id}/${c.id}${requete}`
+            return (
+              <tr class="border-b border-line align-top last:border-0 hover:bg-paper">
+                <td class="px-4 py-3 font-mono whitespace-nowrap">
+                  <a href={fiche} class="font-semibold underline-offset-2 hover:underline">
+                    {c.id}
+                  </a>
+                </td>
+                <td class="px-4 py-3">
+                  <Badge ton={TON_STATUT[c.statut]} label={STATUT_LABELS[c.statut]} />
+                  <p class="mt-1 text-xs whitespace-nowrap text-muted">
+                    {c.nature ? (
+                      NATURE_LABELS[c.nature]
+                    ) : (
+                      <span class="text-accent">À qualifier</span>
+                    )}
+                    {c.gravite && <> · {GRAVITE_LABELS[c.gravite]}</>}
+                  </p>
+                </td>
+                <td class="max-w-56 px-4 py-3">
+                  <p class="truncate font-mono text-xs">{c.page}</p>
+                  <p class="truncate text-muted">{c.zone}</p>
+                </td>
+                <td class="max-w-72 min-w-48 px-4 py-3">
+                  <p class="line-clamp-2">
+                    {c.nature === 'texte' || c.texte_attendu ? c.texte_attendu : c.constat}
+                  </p>
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap text-muted">
+                  {dateCourte(c.date_signalement)}
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex flex-wrap items-start justify-end gap-2">
+                    {actions.aTraiter === 'bouton' && (
+                      <form method="post">
+                        <input type="hidden" name="_action" value="statut" />
+                        <input type="hidden" name="id" value={c.id} />
+                        <input type="hidden" name="revision" value={projet.revision} />
+                        <input type="hidden" name="statut" value="a_traiter" />
+                        <button class="bouton-principal text-xs whitespace-nowrap">
+                          À traiter
+                        </button>
+                      </form>
+                    )}
+                    {actions.aTraiter === 'qualifier' && (
+                      <a
+                        href={fiche}
+                        class="bouton text-xs whitespace-nowrap"
+                        title={`Avant « À traiter », il manque : ${actions.manquants.join(', ')}`}
+                      >
+                        Qualifier →
+                      </a>
+                    )}
+                    {actions.refuser && (
+                      <details class="relative">
+                        <summary class="bouton cursor-pointer list-none text-xs whitespace-nowrap">
+                          Refuser
+                        </summary>
+                        <form
+                          method="post"
+                          class="carte absolute right-0 z-10 mt-1 w-64 space-y-2 shadow-lg"
+                        >
+                          <input type="hidden" name="_action" value="statut" />
+                          <input type="hidden" name="id" value={c.id} />
+                          <input type="hidden" name="revision" value={projet.revision} />
+                          <input type="hidden" name="statut" value="refusee" />
+                          <label class="block">
+                            <span class="etiquette">Raison du refus</span>
+                            <input
+                              class="champ"
+                              name="historique_note"
+                              list="raisons-refus"
+                              required
+                              maxlength="500"
+                              placeholder="Essai de l'agence…"
+                            />
+                          </label>
+                          <button class="bouton w-full border-danger text-danger">
+                            Refuser {c.id}
+                          </button>
+                        </form>
+                      </details>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -539,6 +623,11 @@ connect-src … ${origine}`
 </Layout>
 
 <script>
+  // Filtre de statut appliqué dès qu'on le change
+  document.querySelector<HTMLSelectElement>('[data-auto]')?.addEventListener('change', (e) => {
+    ;(e.currentTarget as HTMLSelectElement).form?.submit()
+  })
+
   // Boutons « Copier » : copient le texte de l'élément ciblé
   document.querySelectorAll<HTMLButtonElement>('[data-copier]').forEach((bouton) => {
     bouton.addEventListener('click', async () => {
