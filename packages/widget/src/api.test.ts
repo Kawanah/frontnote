@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { checkAccess, pageUrl, postLot } from './api'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { checkAccess, DELAI_ECRITURE_MS, DELAI_LECTURE_MS, pageUrl, postLot } from './api'
 import type { NoteLocale } from './notes'
 
 const note: NoteLocale = {
@@ -76,7 +76,7 @@ describe('checkAccess', () => {
     const fetch = vi.fn().mockResolvedValue(Response.json({ ouvert: true, active: true }))
     vi.stubGlobal('fetch', fetch)
     expect(await checkAccess('https://api.test/', 'coress', '8f3a2c')).toBe('ok')
-    expect(fetch).toHaveBeenCalledWith('https://api.test/api/projets/coress/etat?cle=8f3a2c')
+    expect(fetch.mock.calls[0]![0]).toBe('https://api.test/api/projets/coress/etat?cle=8f3a2c')
   })
 
   it('clé refusée, projet clos ou inconnu : le widget ne s’affiche pas', async () => {
@@ -93,5 +93,54 @@ describe('checkAccess', () => {
     expect(await checkAccess('https://api.test', 'coress', 'x')).toBe('unreachable')
     repond({}, 503)
     expect(await checkAccess('https://api.test', 'coress', 'x')).toBe('unreachable')
+  })
+})
+
+// Serveur qui accepte la connexion sans jamais répondre
+const muet = () => vi.fn((_url: string, _init?: RequestInit) => new Promise<Response>(() => {}))
+
+describe('délai maximum', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('checkAccess : serveur muet → « unreachable » après le délai, requête annulée', async () => {
+    const fetch = muet()
+    vi.stubGlobal('fetch', fetch)
+    let resultat: string | undefined
+    void checkAccess('https://api.test', 'coress', 'x').then((r) => (resultat = r))
+
+    await vi.advanceTimersByTimeAsync(DELAI_LECTURE_MS - 1)
+    expect(resultat).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(resultat).toBe('unreachable')
+    const signal = fetch.mock.calls[0]![1]?.signal
+    expect(signal?.aborted).toBe(true)
+  })
+
+  it('checkAccess : sans AbortController, le délai rend quand même la main', async () => {
+    vi.stubGlobal('AbortController', undefined)
+    vi.stubGlobal('fetch', muet())
+    const resultat = checkAccess('https://api.test', 'coress', 'x')
+    await vi.advanceTimersByTimeAsync(DELAI_LECTURE_MS)
+    expect(await resultat).toBe('unreachable')
+  })
+
+  it('postLot : patiente plus longtemps, puis message d’erreur réseau', async () => {
+    vi.stubGlobal('fetch', muet())
+    let erreur: Error | undefined
+    void postLot('https://api.test', { projet: 'coress', cle: 'k', notes: [note] }).catch(
+      (e: Error) => (erreur = e)
+    )
+
+    await vi.advanceTimersByTimeAsync(DELAI_LECTURE_MS)
+    expect(erreur).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(DELAI_ECRITURE_MS - DELAI_LECTURE_MS)
+    expect(erreur?.message).toMatch(/Connexion impossible/)
+  })
+
+  it('réponse dans le délai : minuteur retiré', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ active: true })))
+    expect(await checkAccess('https://api.test', 'coress', 'x')).toBe('ok')
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

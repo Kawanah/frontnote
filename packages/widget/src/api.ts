@@ -10,19 +10,48 @@ export function pageUrl(href: string): string {
 
 export const base = (apiUrl: string) => apiUrl.replace(/\/+$/, '')
 
+// Délais maximum des requêtes : un serveur qui accepte la connexion sans jamais
+// répondre ne doit pas bloquer le widget. Lecture au démarrage : court, le widget
+// s'affiche quand même. Écriture (envoi du lot, sauvegarde du carnet) : large,
+// pour ne pas couper un envoi lent mais abouti.
+export const DELAI_LECTURE_MS = 5000
+export const DELAI_ECRITURE_MS = 30000
+
+// Rejette si la requête n'a pas abouti dans le délai. AbortController (s'il existe)
+// annule la requête ; sans lui, la course suffit à rendre la main.
+export async function avecDelai<T>(
+  ms: number,
+  requete: (signal?: AbortSignal) => Promise<T>
+): Promise<T> {
+  const controleur = typeof AbortController === 'undefined' ? undefined : new AbortController()
+  let minuteur: ReturnType<typeof setTimeout> | undefined
+  const expiration = new Promise<never>((_, rejeter) => {
+    minuteur = setTimeout(() => {
+      controleur?.abort()
+      rejeter(new Error('Délai dépassé'))
+    }, ms)
+  })
+  try {
+    return await Promise.race([requete(controleur?.signal), expiration])
+  } finally {
+    clearTimeout(minuteur)
+  }
+}
+
 export type Access = 'ok' | 'refused' | 'unreachable'
 
 // Le serveur valide-t-il cette clé pour ce projet (ouvert) ? Clos, inconnu ou clé
-// refusée → 'refused'. Serveur injoignable → 'unreachable' : l'envoi tranchera.
+// refusée → 'refused'. Serveur injoignable ou muet → 'unreachable' : l'envoi tranchera.
 export async function checkAccess(apiUrl: string, projectId: string, key: string): Promise<Access> {
+  const url = `${base(apiUrl)}/api/projets/${encodeURIComponent(projectId)}/etat?cle=${encodeURIComponent(key)}`
   try {
-    const response = await fetch(
-      `${base(apiUrl)}/api/projets/${encodeURIComponent(projectId)}/etat?cle=${encodeURIComponent(key)}`
-    )
-    if (response.status === 404) return 'refused'
-    if (!response.ok) return 'unreachable'
-    const { active } = (await response.json()) as { active?: boolean }
-    return active === true ? 'ok' : 'refused'
+    return await avecDelai(DELAI_LECTURE_MS, async (signal) => {
+      const response = await fetch(url, { signal })
+      if (response.status === 404) return 'refused'
+      if (!response.ok) return 'unreachable'
+      const { active } = (await response.json()) as { active?: boolean }
+      return active === true ? 'ok' : 'refused'
+    })
   } catch {
     return 'unreachable'
   }
@@ -31,12 +60,16 @@ export async function checkAccess(apiUrl: string, projectId: string, key: string
 async function envoyerJson(url: string, body: unknown): Promise<Response> {
   let response: Response
   try {
-    response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
+    response = await avecDelai(DELAI_ECRITURE_MS, (signal) =>
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal,
+      })
+    )
   } catch {
+    // Réseau coupé ou serveur muet au-delà du délai
     throw new Error('Connexion impossible, réessayez dans un instant.')
   }
   if (response.status === 429) {

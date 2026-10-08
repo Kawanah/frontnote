@@ -1,6 +1,6 @@
 // Copie du carnet sur le serveur FrontNote : les brouillons survivent à un cache
 // vidé et suivent le client d'un appareil à l'autre grâce au lien de reprise.
-import { base } from './api'
+import { avecDelai, base, DELAI_ECRITURE_MS, DELAI_LECTURE_MS } from './api'
 import { carnetIdValide, type Carnet, type NotesStore } from './notes'
 
 export type EtatSauvegarde = 'ok' | 'attente' | 'erreur'
@@ -34,11 +34,14 @@ export function createSync({ apiUrl, projet, cle, notes }: SyncOptions) {
     const { id, ...carnet } = notes().lire()
     if (!id) return
     try {
-      const response = await fetch(adresse(id), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projet, cle, carnet }),
-      })
+      const response = await avecDelai(DELAI_ECRITURE_MS, (signal) =>
+        fetch(adresse(id), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projet, cle, carnet }),
+          signal,
+        })
+      )
       // Un autre changement a pu arriver pendant l'envoi : il repartira
       if (!timer) changer(response.ok ? 'ok' : 'erreur')
     } catch {
@@ -46,14 +49,17 @@ export function createSync({ apiUrl, projet, cle, notes }: SyncOptions) {
     }
   }
 
-  // null : carnet absent du serveur ou serveur injoignable
+  // null : carnet absent du serveur, serveur injoignable ou muet (le widget
+  // monte alors avec la copie locale)
   async function telecharger(id: string): Promise<Carnet | null> {
+    const params = new URLSearchParams({ projet, cle })
     try {
-      const params = new URLSearchParams({ projet, cle })
-      const response = await fetch(`${adresse(id)}?${params}`)
-      if (!response.ok) return null
-      const { carnet } = (await response.json()) as { carnet?: Carnet }
-      return carnet ? { ...carnet, id } : null
+      return await avecDelai(DELAI_LECTURE_MS, async (signal) => {
+        const response = await fetch(`${adresse(id)}?${params}`, { signal })
+        if (!response.ok) return null
+        const { carnet } = (await response.json()) as { carnet?: Carnet }
+        return carnet ? { ...carnet, id } : null
+      })
     } catch {
       return null
     }

@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DELAI_ECRITURE_MS, DELAI_LECTURE_MS } from './api'
 import { createNotes, type Carnet, type NotesStore } from './notes'
 import { createSync } from './sync'
 import type { Draft } from './types'
@@ -34,6 +35,9 @@ afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
 })
+
+// Serveur qui accepte la connexion sans jamais répondre
+const muet = () => vi.fn(() => new Promise<Response>(() => {}))
 
 const repond = (body: unknown, status = 200) => {
   const fetch = vi.fn().mockResolvedValue(Response.json(body, { status }))
@@ -71,6 +75,15 @@ describe('sauvegarde du carnet', () => {
     expect(sync.etat).toBe('erreur')
     expect(notes.lire().brouillons).toHaveLength(1)
   })
+
+  it('serveur muet : état « erreur » après le délai d’écriture', async () => {
+    vi.stubGlobal('fetch', muet())
+    notes.ajouter(draft, 'https://a.fr/')
+    await vi.advanceTimersByTimeAsync(1000 + DELAI_ECRITURE_MS - 1)
+    expect(sync.etat).toBe('attente')
+    await vi.advanceTimersByTimeAsync(1)
+    expect(sync.etat).toBe('erreur')
+  })
 })
 
 describe('récupération au chargement', () => {
@@ -106,6 +119,21 @@ describe('récupération au chargement', () => {
     await sync.recuperer(null)
     await vi.advanceTimersByTimeAsync(1100)
     expect(fetch.mock.calls[fetch.mock.calls.length - 1]![1].method).toBe('PUT')
+  })
+
+  it('serveur muet : la copie locale est gardée après le délai de lecture', async () => {
+    repond({ ok: true })
+    notes.ajouter(draft, 'https://a.fr/')
+    await vi.advanceTimersByTimeAsync(1100)
+    vi.stubGlobal('fetch', muet())
+
+    let fini = false
+    void sync.recuperer(null).then(() => (fini = true))
+    await vi.advanceTimersByTimeAsync(DELAI_LECTURE_MS - 1)
+    expect(fini).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(fini).toBe(true)
+    expect(notes.lire().brouillons).toHaveLength(1)
   })
 
   it('identifiant de lien invalide : ignoré', async () => {
