@@ -4,12 +4,14 @@ import Layout from '../../../layouts/Layout.astro'
 import { dateCourte, dateHeure, TON_GRAVITE, TON_STATUT } from '../../../lib/affichage'
 import {
   getCorrection,
+  listCorrections,
   mettreAJour,
   miseAJourAgenceSchema,
   transitionsPossibles,
 } from '../../../lib/corrections'
 import { DomainError } from '../../../lib/errors'
 import { qualificationDepuisForm, statutDepuisForm } from '../../../lib/formulaires'
+import { avecParam, filtreDepuisParams, requeteFiltre, voisines } from '../../../lib/navigation'
 import { getProjet } from '../../../lib/projets'
 import { getDb } from '../../../lib/runtime'
 import {
@@ -30,8 +32,19 @@ if (!projet || !correction || correction.projet !== projet.id) {
   return new Response('Correction introuvable', { status: 404 })
 }
 
+// Même filtre que la liste : retour, précédente et suivante suivent son ordre
+const requete = requeteFiltre(Astro.url.searchParams)
+const liste = `/projets/${projet.id}${requete}`
+const lienFiche = (id: string, param?: string) =>
+  `/projets/${projet.id}/${id}${param ? avecParam(requete, param) : requete}`
+const ordre = listCorrections(db, projet.id, filtreDepuisParams(Astro.url.searchParams)).map(
+  (x) => x.id
+)
+const { precedente, suivante } = voisines(ordre, correction.id)
+
 let erreur = ''
 let enregistre = Astro.url.searchParams.has('ok')
+const traitee = Astro.url.searchParams.get('fait')
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData()
@@ -43,7 +56,15 @@ if (Astro.request.method === 'POST') {
   } else {
     try {
       mettreAJour(db, correction.id, 'agence', parsed.data)
-      return Astro.redirect(`/projets/${projet.id}/${correction.id}?ok`)
+      // Passée « À traiter » : on enchaîne sur la suivante de la liste, sinon retour à la liste
+      if (parsed.data.statut === 'a_traiter') {
+        return Astro.redirect(
+          suivante
+            ? lienFiche(suivante, `fait=${correction.id}`)
+            : avecParam(liste, `fait=${correction.id}`)
+        )
+      }
+      return Astro.redirect(lienFiche(correction.id, 'ok'))
     } catch (err) {
       if (!(err instanceof DomainError)) throw err
       erreur = err.message
@@ -62,7 +83,39 @@ const lienPage = c.url
 const t = c.traitement
 ---
 
-<Layout title={`${c.id} · ${projet.nom}`} fil={[[projet.nom, `/projets/${projet.id}`], [c.id]]}>
+<Layout title={`${c.id} · ${projet.nom}`} fil={[[projet.nom, liste], [c.id]]}>
+  <nav class="mb-4 flex flex-wrap items-center justify-between gap-2" aria-label="Navigation">
+    <a href={liste} class="bouton-principal">
+      ← Liste
+    </a>
+    <div class="flex gap-2">
+      {precedente ? (
+        <a href={lienFiche(precedente)} class="bouton" rel="prev">
+          ← Précédente
+        </a>
+      ) : (
+        <span class="bouton cursor-not-allowed opacity-40" aria-disabled="true">
+          ← Précédente
+        </span>
+      )}
+      {suivante ? (
+        <a href={lienFiche(suivante)} class="bouton" rel="next">
+          Suivante →
+        </a>
+      ) : (
+        <span class="bouton cursor-not-allowed opacity-40" aria-disabled="true">
+          Suivante →
+        </span>
+      )}
+    </div>
+  </nav>
+
+  {traitee && (
+    <p class="mb-4 rounded-md bg-ok-soft px-4 py-2 text-sm text-ok" role="status">
+      <span class="font-mono">{traitee}</span> est passée « À traiter ». Voici la suivante.
+    </p>
+  )}
+
   <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
     <div>
       <div class="flex flex-wrap items-center gap-3">

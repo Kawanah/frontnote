@@ -3,7 +3,8 @@ import Badge from '../../../components/Badge.astro'
 import Layout from '../../../layouts/Layout.astro'
 import { dateCourte, TON_GRAVITE, TON_STATUT } from '../../../lib/affichage'
 import { nouveauJeton } from '../../../lib/auth'
-import { clore, exporterProjet, listCorrections, type Filtre } from '../../../lib/corrections'
+import { clore, exporterProjet, listCorrections } from '../../../lib/corrections'
+import { filtreDepuisParams, requeteFiltre } from '../../../lib/navigation'
 import {
   getProjet,
   regenererCle,
@@ -20,10 +21,7 @@ import {
   NATURES,
   STATUT_LABELS,
   STATUTS,
-  STATUTS_FERMES,
-  type Appareil,
   type Nature,
-  type Statut,
 } from '../../../lib/vocabulaire'
 
 const db = getDb()
@@ -69,25 +67,13 @@ if (Astro.request.method === 'POST') {
 }
 const supprimees = Astro.url.searchParams.get('clos')
 
-// Filtres : par défaut les corrections ouvertes
+// Filtres : par défaut les corrections ouvertes ; gardés en passant à la fiche et retour
 const params = Astro.url.searchParams
 const choixStatut = params.get('statut') ?? ''
-const ouvertes = STATUTS.filter((s) => !STATUTS_FERMES.includes(s))
-const filtre: Filtre = {
-  statut:
-    choixStatut === 'toutes'
-      ? undefined
-      : STATUTS.includes(choixStatut as Statut)
-        ? [choixStatut as Statut]
-        : ouvertes,
-  nature: NATURES.includes(params.get('nature') as Nature)
-    ? (params.get('nature') as Nature)
-    : undefined,
-  appareil: APPAREILS.includes(params.get('appareil') as Appareil)
-    ? (params.get('appareil') as Appareil)
-    : undefined,
-  lot: params.get('lot') || undefined,
-}
+const filtre = filtreDepuisParams(params)
+const requete = requeteFiltre(params)
+// Demande que l'on vient de traiter depuis sa fiche (dernière de la liste)
+const fait = params.get('fait')
 
 const corrections = listCorrections(db, projet.id, filtre)
 const lots = (
@@ -195,6 +181,13 @@ connect-src … ${origine}`
     </div>
   )}
 
+  {fait && (
+    <p class="mb-4 rounded-md bg-ok-soft px-4 py-2 text-sm text-ok" role="status">
+      <span class="font-mono">{fait}</span> est passée « À traiter ». C'était la dernière de la
+      liste.
+    </p>
+  )}
+
   <form method="get" class="carte mb-4 grid gap-3 sm:grid-cols-5 sm:items-end">
     <label>
       <span class="etiquette">Statut</span>
@@ -273,7 +266,7 @@ connect-src … ${origine}`
             <tr class="border-b border-line last:border-0 hover:bg-paper">
               <td class="px-4 py-3 font-mono whitespace-nowrap">
                 <a
-                  href={`/projets/${projet.id}/${c.id}`}
+                  href={`/projets/${projet.id}/${c.id}${requete}`}
                   class="font-semibold underline-offset-2 hover:underline"
                 >
                   {c.id}
