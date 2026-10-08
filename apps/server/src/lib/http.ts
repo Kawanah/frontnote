@@ -4,12 +4,12 @@ import { DomainError } from './errors'
 // origines, sans cookies. Les routes de lecture/modification exigent le token.
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Max-Age': '86400',
 }
 
-const MAX_BODY_CHARS = 20_000
+export const MAX_BODY_CHARS = 20_000
 
 export const json = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: CORS_HEADERS })
@@ -17,9 +17,9 @@ export const json = (data: unknown, status = 200) =>
 export const preflight = () => new Response(null, { status: 204, headers: CORS_HEADERS })
 
 // Corps JSON, ou undefined si absent, trop gros ou mal formé
-export async function readJson(request: Request): Promise<unknown> {
+export async function readJson(request: Request, max = MAX_BODY_CHARS): Promise<unknown> {
   const text = await request.text()
-  if (!text || text.length > MAX_BODY_CHARS) return undefined
+  if (!text || text.length > max) return undefined
   try {
     return JSON.parse(text)
   } catch {

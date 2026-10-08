@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tarifs · Démo FrontNote</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Georgia, serif;
+        color: #222;
+        background: #f6f3ee;
+      }
+      header {
+        position: sticky;
+        top: 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 32px;
+        background: #fff;
+        box-shadow: 0 1px 0 #ddd;
+      }
+      nav a {
+        margin-left: 20px;
+        color: #2b5d4f;
+      }
+      .hero {
+        height: 360px;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(135deg, #2b5d4f, #8fb3a0);
+        color: #fff;
+        font-size: 42px;
+      }
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 48px 24px;
+      }
+      .cta {
+        display: inline-block;
+        padding: 12px 22px;
+        border-radius: 6px;
+        background: #c2410c;
+        color: #fff;
+        text-decoration: none;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-top: 32px;
+      }
+      .card {
+        padding: 20px;
+        background: #fff;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>Gîte des Pins</strong>
+      <nav><a href="./">Accueil</a><a href="tarifs.html">Tarifs</a></nav>
+    </header>
+    <main>
+      <h1>Nos tarifs</h1>
+      <p>Les prix s'entendent par nuit, ménage compris.</p>
+      <div class="cards">
+        <div class="card">
+          <h2>Basse saison</h2>
+          <p>120 € la nuit, deux nuits minimum.</p>
+        </div>
+        <div class="card">
+          <h2>Haute saison</h2>
+          <p>180 € la nuit, une semaine minimum.</p>
+        </div>
+      </div>
+      <a class="cta" href="https://example.com">Réserver maintenant</a>
+    </main>
+    <!-- Deuxième page de la démo : tester les retours gardés d'une page à l'autre -->
+    <script
+      src="../dist/frontnote.js"
+      data-project="demo"
+      data-api="http://localhost:4400"
+    ></script>
+  </body>
+</html>

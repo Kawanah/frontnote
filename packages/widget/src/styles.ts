@@ -49,11 +49,22 @@ textarea {
   outline-offset: 2px;
 }
 
-/* Bouton principal */
-.toolbar {
+/* Barre d'outils : Mes retours + Commenter */
+.bar {
   position: fixed;
   right: 16px;
   bottom: 16px;
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.root.sb-open .bar {
+  right: calc(360px + 16px);
+}
+
+.toolbar,
+.mine {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -64,8 +75,27 @@ textarea {
   color: #fff;
   font-weight: 600;
   cursor: pointer;
-  pointer-events: auto;
   box-shadow: var(--fn-shadow);
+}
+
+.mine {
+  background: var(--fn-paper);
+  color: var(--fn-ink);
+}
+
+.mine[aria-expanded='true'] {
+  outline: 2px solid var(--fn-ink);
+  outline-offset: -2px;
+}
+
+.badge {
+  min-width: 22px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--fn-accent);
+  color: #fff;
+  font-size: 12px;
+  text-align: center;
 }
 
 .toolbar[aria-pressed='true'] {
@@ -106,6 +136,24 @@ textarea {
 .pin.draft {
   background: var(--fn-accent);
   animation: fn-pulse 1.4s ease-out infinite;
+}
+
+/* Brouillon gardé : cliquable pour le modifier */
+button.pin {
+  padding: 0;
+  background: var(--fn-accent);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+/* Déjà envoyé : lecture seule */
+.pin.sent {
+  background: var(--fn-muted);
+  opacity: 0.85;
+}
+
+.pin.flash {
+  animation: fn-pulse 0.7s ease-out 3;
 }
 
 @keyframes fn-pulse {
@@ -261,6 +309,291 @@ textarea {
   cursor: wait;
 }
 
+/* Panneau latéral « Mes retours » */
+.sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  background: var(--fn-paper);
+  box-shadow: var(--fn-shadow);
+  pointer-events: auto;
+}
+
+.sb-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--fn-line);
+}
+
+.sb-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.icon {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.icon:hover {
+  background: #f4f4f1;
+}
+
+.sb-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px 16px;
+}
+
+.sb-empty,
+.sb-note {
+  margin: 0;
+  color: var(--fn-muted);
+  font-size: 13px;
+}
+
+.sb-note.strong {
+  color: var(--fn-ink);
+  font-weight: 600;
+}
+
+.sb-body h3 {
+  margin: 4px 0 8px;
+  font-size: 14px;
+}
+
+.sb-sub {
+  margin: 16px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fn-muted);
+}
+
+.group h4 {
+  margin: 10px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fn-muted);
+  overflow-wrap: anywhere;
+}
+
+.group h4 a {
+  color: inherit;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--fn-line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.card.clickable {
+  cursor: pointer;
+}
+
+.card.clickable:hover {
+  border-color: var(--fn-ink);
+}
+
+.card.recent {
+  animation: fn-recent 1.6s ease-out;
+}
+
+@keyframes fn-recent {
+  from {
+    background: var(--fn-accent-soft);
+    border-color: var(--fn-accent);
+  }
+}
+
+.num {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--fn-accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.num.sent {
+  background: var(--fn-muted);
+}
+
+.card-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.card-meta {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fn-muted);
+}
+
+.card-text {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.card-warn {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--fn-danger);
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link.danger {
+  color: var(--fn-danger);
+}
+
+details[data-envoyes],
+details.reprise {
+  margin-top: 18px;
+}
+
+details.reprise summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+details.reprise .sb-note {
+  margin: 8px 0;
+}
+
+.copie {
+  display: flex;
+  gap: 6px;
+}
+
+.copie .text {
+  min-width: 0;
+  flex: 1;
+  font-size: 12px;
+}
+
+.sb-note.warn {
+  color: var(--fn-danger);
+}
+
+details[data-envoyes] summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+details[data-envoyes] .cards {
+  margin-top: 8px;
+}
+
+.sb-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--fn-line);
+}
+
+.sb-foot.masque {
+  display: none;
+}
+
+.sb-foot [data-avant-envoi],
+.sb-foot [data-confirmation] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.btn.wide {
+  width: 100%;
+  padding: 11px 14px;
+}
+
+.form-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-weight: 700;
+}
+
+/* Formulaire de modification : dans le panneau, sans ombre ni position propre */
+.sidebar .panel {
+  position: static;
+  width: auto;
+  max-height: none;
+  padding: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+/* Toast centré sur la partie visible de la page */
+.root.sb-open .toast {
+  left: calc((100% - 360px) / 2);
+}
+
+@media (max-width: 480px) {
+  .sidebar {
+    width: 100%;
+  }
+
+  .root.sb-open .toast {
+    left: 50%;
+  }
+
+  .root.sb-open .bar {
+    display: none;
+  }
+}
+
 /* Confirmation */
 .toast {
   position: fixed;
@@ -279,7 +612,9 @@ textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pin.draft {
+  .pin.draft,
+  .pin.flash,
+  .card.recent {
     animation: none;
   }
 }

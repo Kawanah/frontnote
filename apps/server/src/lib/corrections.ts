@@ -45,39 +45,57 @@ export const contexteSchema = z.object({
   touch: z.boolean(),
 })
 
+// Champs d'un retour posé par le widget (sans projet ni clé)
+export const retourWidget = z.object({
+  url: lienWeb,
+  selecteur: z.string().min(1).max(1000),
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  type: z.enum(TYPES_CLIENT),
+  appareil: z.enum(APPAREILS),
+  zone: texteLibre(200).min(1),
+  texte_actuel: z.string().max(5000).optional(),
+  // Texte du client : ni trim ni normalisation, repris mot pour mot (contrat § 7.1)
+  texte_attendu: z.string().max(10_000).optional(),
+  constat: texteLibre(2000).optional(),
+  attendu: texteLibre(2000).optional(),
+  couleur: z
+    .string()
+    .regex(/^#[0-9a-f]{6}$/i)
+    .optional(),
+  auteur: texteLibre(100).optional(),
+  contexte: contexteSchema.optional(),
+})
+
+// Texte : le nouveau texte est obligatoire ; autres types : le constat
+function retourComplet(s: z.infer<typeof retourWidget>, ctx: z.RefinementCtx) {
+  if (s.type === 'texte' && !s.texte_attendu?.trim()) {
+    ctx.addIssue({ code: 'custom', path: ['texte_attendu'], message: 'Nouveau texte manquant' })
+  }
+  if (s.type !== 'texte' && !s.constat) {
+    ctx.addIssue({ code: 'custom', path: ['constat'], message: 'Constat manquant' })
+  }
+}
+
+const accesWidget = {
+  projet: projetIdSchema,
+  cle: z.string().min(1).max(100), // clé d'activation du lien ?frontnote=<clé>
+  _honey: z.string().optional(), // honeypot anti-robot : doit rester vide
+}
+
 // Signalement envoyé par le widget (POST /api/corrections)
-export const signalementSchema = z
-  .object({
-    projet: projetIdSchema,
-    cle: z.string().min(1).max(100), // clé d'activation du lien ?frontnote=<clé>
-    url: lienWeb,
-    selecteur: z.string().min(1).max(1000),
-    x: z.number().min(0).max(1),
-    y: z.number().min(0).max(1),
-    type: z.enum(TYPES_CLIENT),
-    appareil: z.enum(APPAREILS),
-    zone: texteLibre(200).min(1),
-    texte_actuel: z.string().max(5000).optional(),
-    // Texte du client : ni trim ni normalisation, repris mot pour mot (contrat § 7.1)
-    texte_attendu: z.string().max(10_000).optional(),
-    constat: texteLibre(2000).optional(),
-    attendu: texteLibre(2000).optional(),
-    couleur: z
-      .string()
-      .regex(/^#[0-9a-f]{6}$/i)
-      .optional(),
-    auteur: texteLibre(100).optional(),
-    contexte: contexteSchema.optional(),
-    _honey: z.string().optional(), // honeypot anti-robot : doit rester vide
-  })
-  .superRefine((s, ctx) => {
-    if (s.type === 'texte' && !s.texte_attendu?.trim()) {
-      ctx.addIssue({ code: 'custom', path: ['texte_attendu'], message: 'Nouveau texte manquant' })
-    }
-    if (s.type !== 'texte' && !s.constat) {
-      ctx.addIssue({ code: 'custom', path: ['constat'], message: 'Constat manquant' })
-    }
-  })
+export const signalementSchema = retourWidget.extend(accesWidget).superRefine(retourComplet)
+
+export const LOT_MAX = 50
+
+// Lot de retours validé par le client en une fois (POST /api/corrections/lot)
+export const lotSchema = z.object({
+  ...accesWidget,
+  corrections: z.array(retourWidget.superRefine(retourComplet)).min(1).max(LOT_MAX),
+})
+
+export type Lot = z.infer<typeof lotSchema>
+type RetourWidget = z.infer<typeof retourWidget>
 
 export type Signalement = z.infer<typeof signalementSchema>
 
@@ -271,72 +289,90 @@ export function listCorrections(db: Db, projet: string, filtre: Filtre = {}): Co
 
 // --- Création par le widget --------------------------------------------------
 
+// Projet ouvert et clé d'activation valide, sinon erreur lisible pour le widget
+export function projetOuvert(db: Db, projetId: string, cle: string): Projet {
+  const projet = getProjet(db, projetId)
+  if (!projet) throw new DomainError(404, `Projet inconnu : « ${projetId} »`)
+  if (projet.clos_le) {
+    throw new DomainError(410, `Le projet « ${projet.id} » est clos : il ne reçoit plus de retours`)
+  }
+  if (!cleValide(projet.cle_activation, cle)) {
+    throw new DomainError(403, 'Lien d’activation invalide ou périmé : demandez un nouveau lien')
+  }
+  return projet
+}
+
+// Insère un retour du widget ; à appeler dans une transaction
+function insererRetour(db: Db, projet: Projet, input: RetourWidget): string {
+  const id = nextId(db, projet.id)
+  // Garde-fou : un identifiant déjà pris donne une erreur lisible, pas un 500
+  if (db.prepare('SELECT 1 FROM corrections WHERE id = ?').get(id)) {
+    throw new DomainError(
+      409,
+      `L’identifiant ${id} existe déjà : vérifiez le préfixe et le compteur du projet « ${projet.id} »`
+    )
+  }
+  const now = maintenant()
+  const proposee = NATURE_PAR_TYPE[input.type]
+  const texte = input.type === 'texte'
+  const attendu = [input.attendu, input.couleur && `Couleur souhaitée : ${input.couleur}.`]
+    .filter(Boolean)
+    .join(' ')
+
+  db.prepare(
+    `INSERT INTO corrections (
+       id, projet, date_signalement, signale_par, canal, page, zone, appareil, navigateur,
+       nature, constat, attendu, texte_actuel, texte_attendu, type_client, url, selecteur,
+       x, y, couleur, auteur, contexte, cree_le, mis_a_jour_le
+     ) VALUES (
+       @id, @projet, @date_signalement, 'client', 'app', @page, @zone, @appareil, @navigateur,
+       @nature, @constat, @attendu, @texte_actuel, @texte_attendu, @type_client, @url, @selecteur,
+       @x, @y, @couleur, @auteur, @contexte, @now, @now
+     )`
+  ).run({
+    id,
+    projet: projet.id,
+    date_signalement: aujourdhui(),
+    page: new URL(input.url).pathname,
+    zone: input.zone,
+    appareil: input.appareil,
+    navigateur: input.contexte ? describeUserAgent(input.contexte.userAgent) : null,
+    nature: proposee && projet.natures.includes(proposee) ? proposee : null,
+    constat: input.constat || (texte ? 'Le texte affiché doit être remplacé.' : null),
+    attendu: attendu || (texte ? 'Le texte attendu ci-dessous, repris mot pour mot.' : null),
+    texte_actuel: texte ? (input.texte_actuel ?? null) : null,
+    texte_attendu: texte ? (input.texte_attendu ?? null) : null,
+    type_client: input.type,
+    url: input.url,
+    selecteur: input.selecteur,
+    x: input.x,
+    y: input.y,
+    couleur: input.couleur ?? null,
+    auteur: input.auteur ?? null,
+    contexte: input.contexte ? JSON.stringify(input.contexte) : null,
+    now,
+  })
+
+  ajouterHistorique(db, id, { auteur: 'client', de: null, vers: 'nouvelle', note: '' })
+  return id
+}
+
 export function creerDepuisWidget(db: Db, input: Omit<Signalement, '_honey'>): Correction {
   return transaction(db, () => {
-    const projet = getProjet(db, input.projet)
-    if (!projet) throw new DomainError(404, `Projet inconnu : « ${input.projet} »`)
-    if (projet.clos_le) {
-      throw new DomainError(
-        410,
-        `Le projet « ${projet.id} » est clos : il ne reçoit plus de retours`
-      )
-    }
-    if (!cleValide(projet.cle_activation, input.cle)) {
-      throw new DomainError(403, 'Lien d’activation invalide ou périmé : demandez un nouveau lien')
-    }
-
-    const id = nextId(db, projet.id)
-    // Garde-fou : un identifiant déjà pris donne une erreur lisible, pas un 500
-    if (db.prepare('SELECT 1 FROM corrections WHERE id = ?').get(id)) {
-      throw new DomainError(
-        409,
-        `L’identifiant ${id} existe déjà : vérifiez le préfixe et le compteur du projet « ${projet.id} »`
-      )
-    }
-    const now = maintenant()
-    const proposee = NATURE_PAR_TYPE[input.type]
-    const texte = input.type === 'texte'
-    const attendu = [input.attendu, input.couleur && `Couleur souhaitée : ${input.couleur}.`]
-      .filter(Boolean)
-      .join(' ')
-
-    db.prepare(
-      `INSERT INTO corrections (
-         id, projet, date_signalement, signale_par, canal, page, zone, appareil, navigateur,
-         nature, constat, attendu, texte_actuel, texte_attendu, type_client, url, selecteur,
-         x, y, couleur, auteur, contexte, cree_le, mis_a_jour_le
-       ) VALUES (
-         @id, @projet, @date_signalement, 'client', 'app', @page, @zone, @appareil, @navigateur,
-         @nature, @constat, @attendu, @texte_actuel, @texte_attendu, @type_client, @url, @selecteur,
-         @x, @y, @couleur, @auteur, @contexte, @now, @now
-       )`
-    ).run({
-      id,
-      projet: projet.id,
-      date_signalement: aujourdhui(),
-      page: new URL(input.url).pathname,
-      zone: input.zone,
-      appareil: input.appareil,
-      navigateur: input.contexte ? describeUserAgent(input.contexte.userAgent) : null,
-      nature: proposee && projet.natures.includes(proposee) ? proposee : null,
-      constat: input.constat || (texte ? 'Le texte affiché doit être remplacé.' : null),
-      attendu: attendu || (texte ? 'Le texte attendu ci-dessous, repris mot pour mot.' : null),
-      texte_actuel: texte ? (input.texte_actuel ?? null) : null,
-      texte_attendu: texte ? (input.texte_attendu ?? null) : null,
-      type_client: input.type,
-      url: input.url,
-      selecteur: input.selecteur,
-      x: input.x,
-      y: input.y,
-      couleur: input.couleur ?? null,
-      auteur: input.auteur ?? null,
-      contexte: input.contexte ? JSON.stringify(input.contexte) : null,
-      now,
-    })
-
-    ajouterHistorique(db, id, { auteur: 'client', de: null, vers: 'nouvelle', note: '' })
+    const projet = projetOuvert(db, input.projet, input.cle)
+    const id = insererRetour(db, projet, input)
     bumpRevision(db, projet.id)
     return getCorrection(db, id) as Correction
+  })
+}
+
+// Lot validé par le client : tout ou rien ; identifiants dans l'ordre du lot
+export function creerLotDepuisWidget(db: Db, lot: Omit<Lot, '_honey'>): string[] {
+  return transaction(db, () => {
+    const projet = projetOuvert(db, lot.projet, lot.cle)
+    const ids = lot.corrections.map((retour) => insererRetour(db, projet, retour))
+    bumpRevision(db, projet.id)
+    return ids
   })
 }
 
@@ -573,6 +609,8 @@ export function clore(db: Db, projetId: string): number {
       'DELETE FROM historique WHERE correction_id IN (SELECT id FROM corrections WHERE projet = ?)'
     ).run(projetId)
     const { changes } = db.prepare('DELETE FROM corrections WHERE projet = ?').run(projetId)
+    // Brouillons des clients : le widget disparaît, ils n'ont plus d'usage
+    db.prepare('DELETE FROM carnets WHERE projet = ?').run(projetId)
     db.prepare('UPDATE projets SET clos_le = ?, jeton_agent = NULL WHERE id = ?').run(
       maintenant(),
       projetId
