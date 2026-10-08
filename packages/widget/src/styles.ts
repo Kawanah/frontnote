@@ -248,6 +248,19 @@ textarea {
   resize: vertical;
 }
 
+.label-ligne {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.link.small {
+  margin-bottom: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .current {
   max-height: 96px;
   margin: 0;

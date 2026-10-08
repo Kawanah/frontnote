@@ -39,11 +39,14 @@ const FORM_HTML = `
     <span class="label">Texte actuel</span>
     <p class="current" data-current></p>
   </div>
-  <label data-texte hidden>
-    <span class="label">Nouveau texte, collé tel quel</span>
-    <textarea name="texte_attendu" maxlength="10000"
-      placeholder="Le texte exact à afficher à la place"></textarea>
-  </label>
+  <div data-texte hidden>
+    <div class="label-ligne">
+      <span class="label">Nouveau texte, envoyé tel quel</span>
+      <button type="button" class="link small" data-reprendre>Partir du texte actuel</button>
+    </div>
+    <textarea name="texte_attendu" maxlength="10000" aria-label="Nouveau texte"
+      placeholder="Corrigez le texte actuel ou collez le vôtre"></textarea>
+  </div>
   <label>
     <span class="label" data-constat-label>Ce qui ne va pas</span>
     <textarea name="constat" maxlength="2000"
@@ -133,6 +136,7 @@ export function createForm({
   const attendu = field<HTMLTextAreaElement>('[name=attendu]')
   const author = field<HTMLInputElement>('[name=auteur]')
   const error = field<HTMLElement>('.error')
+  const reprendre = field<HTMLButtonElement>('[data-reprendre]')
 
   field<HTMLElement>('[data-numero]').textContent = String(numero)
   field<HTMLElement>('[data-titre]').textContent = initial ? 'Modifier ce retour' : 'Nouveau retour'
@@ -150,6 +154,23 @@ export function createForm({
   author.value = initial ? (initial.auteur ?? '') : readAuthor()
 
   const selectedType = () => new FormData(panel).get('type') as CommentType
+
+  // Partir du texte actuel : le client corrige quelques mots au lieu de tout retaper.
+  // Il ne remplace ce qu'il a déjà écrit que s'il le demande explicitement.
+  reprendre.hidden = !texteActuel
+  const libelleReprendre = () => {
+    const different = texteAttendu.value.trim() !== '' && texteAttendu.value !== texteActuel
+    reprendre.textContent = different ? 'Remplacer par le texte actuel' : 'Partir du texte actuel'
+  }
+  libelleReprendre()
+  texteAttendu.addEventListener('input', libelleReprendre)
+  reprendre.addEventListener('click', () => {
+    texteAttendu.value = texteActuel
+    texteAttendu.style.height = `${Math.min(texteAttendu.scrollHeight + 2, 260)}px`
+    texteAttendu.focus()
+    texteAttendu.setSelectionRange(texteActuel.length, texteActuel.length)
+    libelleReprendre()
+  })
 
   // Texte : texte actuel + nouveau texte ; autres types : constat + attendu
   function updateMode() {
@@ -180,7 +201,14 @@ export function createForm({
     const constatValue = constat.value.trim()
 
     if (texte && !nouveauTexte.trim()) {
-      return showError('Collez le nouveau texte avant de continuer.', texteAttendu)
+      return showError('Écrivez le nouveau texte avant de continuer.', texteAttendu)
+    }
+    // Simple comparaison : le texte envoyé reste celui du client, sans retouche
+    if (texte && texteActuel && nouveauTexte.trim() === texteActuel) {
+      return showError(
+        'Le nouveau texte est identique au texte actuel : modifiez-le avant de continuer.',
+        texteAttendu
+      )
     }
     if (!texte && !constatValue) {
       return showError('Dites ce qui ne va pas avant de continuer.', constat)
