@@ -121,6 +121,32 @@ describe('brouillons', () => {
     expect($('[data-envoyer]').textContent).toBe('Envoyer mon retour')
   })
 
+  it('type texte : « Partir du texte actuel » recopie le texte à corriger', () => {
+    ouvrir()
+    const reprendre = $<HTMLButtonElement>('[data-reprendre]')
+    const champ = $<HTMLTextAreaElement>('[name=texte_attendu]')
+    expect(reprendre.hidden).toBe(false)
+    reprendre.click()
+    expect(champ.value).toBe('Réserver maintenant')
+
+    // Recopié sans changement : rien à corriger, on le signale
+    garder()
+    expect($('.root > .panel .error').textContent).toContain('identique')
+    expect(carnet().lire().brouillons).toEqual([])
+
+    champ.value = 'Réserver dès maintenant '
+    champ.dispatchEvent(new Event('input'))
+    expect(reprendre.textContent).toBe('Remplacer par le texte actuel')
+    garder()
+    expect(carnet().lire().brouillons[0]!.texte_attendu).toBe('Réserver dès maintenant ')
+  })
+
+  it('élément sans texte : pas de bouton pour repartir du texte actuel', () => {
+    document.body.innerHTML = '<main><img id="lien" alt=""></main>'
+    ouvrir()
+    expect($<HTMLButtonElement>('[data-reprendre]').hidden).toBe(true)
+  })
+
   it('type couleur : constat, attendu, couleur et écran choisis', () => {
     ouvrir()
     $<HTMLInputElement>('input[value=couleur]').click()
