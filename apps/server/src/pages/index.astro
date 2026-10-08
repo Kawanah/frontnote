@@ -33,6 +33,14 @@ const projets = listProjets(getDb())
 <Layout title="Projets">
   <div class="mb-6 flex items-end justify-between gap-4">
     <h1 class="text-2xl font-bold tracking-tight">Projets</h1>
+    <a
+      href="/sauvegarde.db"
+      download
+      class="bouton inline-block text-sm"
+      title="Copie complète de la base, à garder hors d'O2switch"
+    >
+      Télécharger une sauvegarde
+    </a>
   </div>
 
   {projets.length === 0 ? (

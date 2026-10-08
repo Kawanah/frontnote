@@ -42,6 +42,7 @@ Premier site équipé : www.kawanah.com (projet `kawanah`, dépôt `Kawanah/Kawa
 - Build autonome (`vite.ssr.noExternal: true` dans `astro.config.mjs`) : `dist/` contient toutes les dépendances, le `package.json` déployé n'en a aucune. **Plus besoin de « Run NPM Install »** ; une nouvelle dépendance ne doit pas être native.
 - `GET /api/health` → `{ ok, db, node }` (503 si la base ne s'ouvre pas) : premier réflexe de diagnostic.
 - La base (`apps/frontnote/data/`) n'est jamais touchée par le déploiement.
+- **Sauvegarde** : lien « Télécharger une sauvegarde » sur l'accueil du dashboard → `GET /sauvegarde.db` (session agence seule : ni jeton agent ni accès public, la copie contient empreintes des jetons et clés d'activation). Copie par `VACUUM INTO` dans un dossier temporaire supprimé aussitôt (`lib/sauvegarde.ts`), cohérente même en WAL ; ne jamais copier le `.db` à la main pendant que l'app tourne. Pas encore de sauvegarde automatique.
 - Pièges rencontrés au premier déploiement : nom de variable mal saisi dans le Node.js Selector (`DASHBOARDS_TOKEN`, variable sans nom `=production`) → vérifier les noms lettre par lettre ; module natif (`better-sqlite3`) non installable → uniquement du JS pur ou des modules intégrés à Node.
 
 TypeScript épinglé en `~6.0` : `@typescript-eslint` ne supporte pas TS 7. tsup a besoin de `ignoreDeprecations: '6.0'` pour le build des types.
@@ -60,7 +61,7 @@ Trois briques **découplées**, c'est le point structurant du projet :
    - `PATCH /api/corrections/:id` `{ revision, statut?, ...champs }` — l'agent n'écrit que les champs du § 5 (schéma strict), l'agence ceux de qualification ; `revision` périmée → 409
    - Rôles (`lib/auth.ts`) : agence = `DASHBOARD_TOKEN` ; agent = jeton par projet (seule son empreinte SHA-256 est stockée, généré depuis le dashboard) ; client = widget sans jeton
    - Logique métier dans `src/lib/` (testable sans serveur) ; seul `src/lib/runtime.ts` lit `astro:env`. Limiteurs dans `lib/limites.ts` (le frontmatter d'une page Astro s'exécute à chaque requête)
-3. **Dashboard** — pages Astro (`/`, `/projets/:projet`, `/projets/:projet/:id`), session par cookie signé après saisie du jeton agence (`/connexion`, `middleware.ts`). Qualification, changements de statut, retour de l'agent, historique, accès agent (URL, jeton, consigne CLAUDE.md, « Copier pour l'agent »), ligne d'installation du widget.
+3. **Dashboard** — pages Astro (`/`, `/projets/:projet`, `/projets/:projet/:id`), session par cookie signé après saisie du jeton agence (`/connexion`, `middleware.ts` ; routes publiques listées dans `lib/acces.ts`, tout le reste exige la session). Qualification, changements de statut, retour de l'agent, historique, accès agent (URL, jeton, consigne CLAUDE.md, « Copier pour l'agent »), ligne d'installation du widget.
 
 Contrainte à ne pas casser : **l'API et le dashboard ne sont jamais dupliqués par projet client**. Seul le widget s'installe côté client :
 

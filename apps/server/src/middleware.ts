@@ -1,21 +1,11 @@
 import { defineMiddleware } from 'astro:middleware'
-import { SESSION_COOKIE, sessionValide } from './lib/auth'
+import { sessionRequise } from './lib/acces'
+import { SESSION_COOKIE } from './lib/auth'
 import { dashboardToken } from './lib/runtime'
-
-// Routes accessibles sans session : API (jetons propres), connexion, fichiers publics
-const PUBLIQUES = [
-  /^\/api\//,
-  /^\/connexion$/,
-  /^\/frontnote\.js$/,
-  /^\/robots\.txt$/,
-  /^\/_astro\//,
-]
 
 export const onRequest = defineMiddleware(async (ctx, next) => {
   const { pathname } = ctx.url
-  const publique = PUBLIQUES.some((route) => route.test(pathname))
-
-  if (!publique && !sessionValide(ctx.cookies.get(SESSION_COOKIE)?.value, dashboardToken)) {
+  if (sessionRequise(pathname, ctx.cookies.get(SESSION_COOKIE)?.value, dashboardToken)) {
     return ctx.redirect('/connexion')
   }
 
