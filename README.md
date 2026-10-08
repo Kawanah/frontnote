@@ -56,7 +56,7 @@ les projets.
   lien ?frontnote=<clé>                       tableau de bord
           │                                          │
           ▼                                          ▼
- ┌──────────────────────┐   POST /api/corrections   ┌──────────────────────────┐
+ ┌──────────────────────┐   POST /corrections/lot   ┌──────────────────────────┐
  │  Widget FrontNote     │ ────────────────────────► │  FrontNote (Astro 7)      │
  │  JS vanilla, Shadow   │   GET /etat?cle=          │  frontnote.kawanah.com    │
  │  DOM, zéro dépendance │ ◄──────────────────────── │                           │
@@ -73,7 +73,7 @@ les projets.
 
 ### Le widget
 
-Un script d’environ 16 Ko (6 Ko compressé), sans framework, qui fonctionne pareil sur
+Un script d’environ 36 Ko (12 Ko compressé), sans framework, qui fonctionne pareil sur
 Astro, Next ou WordPress. Toute son interface (bouton, surlignage, pins,
 formulaire) vit dans un **Shadow DOM** : le style du site ne peut pas l'abîmer,
 et le sien ne déborde jamais sur le site. Pendant le mode commentaire, les clics
@@ -83,6 +83,21 @@ de l'ouvrir.
 Le client choisit un type simple - texte, couleur, image, lien, bug, autre - et
 l'écran concerné. FrontNote en déduit une **nature** proposée, que l'agence
 confirme.
+
+Les retours ne partent pas un par un. Chacun est d'abord **gardé dans le
+navigateur du client**, numéroté (même numéro sur le pin et dans la liste), et
+reste visible quand il change de page puis revient. Le panneau **« Mes retours »**
+se remplit au fur et à mesure : le client y relit, modifie ou supprime ses
+retours, toutes pages confondues. Quand il a fini, **« Envoyer mes N retours »**
+les transmet en un seul lot (tout ou rien). Les retours envoyés restent affichés
+en lecture seule, avec leur identifiant (`KAW-012`).
+
+Le carnet est aussi **sauvegardé sur FrontNote** à chaque changement : un cache
+vidé, Safari qui efface les données d'un site au bout de 7 jours, ou un
+changement d'appareil ne font rien perdre. Le panneau donne un **lien de
+reprise** personnel (`?frontnote=<clé>&carnet=<id>`) qui rouvre les retours
+n'importe où. Ces brouillons ne sont pas des corrections : l'agence ne les voit
+qu'une fois envoyés.
 
 ### Activation par lien secret
 
@@ -114,7 +129,7 @@ nouvelle ──► a_traiter ──► en_cours ──► corrigee ──► en_
    └──► hors_perimetre / refusee / doublon
 ```
 
-- le **client** crée une correction `nouvelle` depuis le widget ;
+- le **client** envoie ses retours depuis le widget : chacun devient une correction `nouvelle` ;
 - l'**agence** la qualifie (nature, gravité, lieu de correction, lot) et la
   passe `a_traiter` ;
 - l'**agent** la lit, la corrige sur une branche, écrit son retour (branche,
@@ -157,13 +172,15 @@ garde que l'empreinte SHA-256.
 
 ### API
 
-| Route                                           | Accès         | Rôle                                                  |
-| ----------------------------------------------- | ------------- | ----------------------------------------------------- |
-| `POST /api/corrections`                         | widget (clé)  | crée une correction `nouvelle`                        |
-| `GET /api/projets/:projet/etat?cle=`            | public        | `{ ouvert, active }` : le widget doit-il s'afficher ? |
-| `GET /api/projets/:projet/corrections?statut=…` | agent, agence | vue agent, au format du § 6 du contrat, filtrable     |
-| `PATCH /api/corrections/:id`                    | agent, agence | mise à jour avec `revision` ; champs limités par rôle |
-| `GET /api/health`                               | public        | `{ ok, db, node }` - premier réflexe de diagnostic    |
+| Route                                           | Accès         | Rôle                                                       |
+| ----------------------------------------------- | ------------- | ---------------------------------------------------------- |
+| `POST /api/corrections/lot`                     | widget (clé)  | crée un lot de corrections `nouvelle` (≤ 50, tout ou rien) |
+| `POST /api/corrections`                         | widget (clé)  | crée une correction `nouvelle` (anciens widgets)           |
+| `GET` / `PUT /api/carnets/:id`                  | widget (clé)  | copie serveur des brouillons du client (lien de reprise)   |
+| `GET /api/projets/:projet/etat?cle=`            | public        | `{ ouvert, active }` : le widget doit-il s'afficher ?      |
+| `GET /api/projets/:projet/corrections?statut=…` | agent, agence | vue agent, au format du § 6 du contrat, filtrable          |
+| `PATCH /api/corrections/:id`                    | agent, agence | mise à jour avec `revision` ; champs limités par rôle      |
+| `GET /api/health`                               | public        | `{ ok, db, node }` - premier réflexe de diagnostic         |
 
 ---
 

@@ -7,8 +7,11 @@ import {
   archiverProjet,
   clore,
   creerDepuisWidget,
+  creerLotDepuisWidget,
   exporterProjet,
+  LOT_MAX,
   listCorrections,
+  lotSchema,
   mettreAJour,
   miseAJourAgentSchema,
   signalementSchema,
@@ -132,6 +135,41 @@ describe('création par le widget', () => {
     expect(
       erreurDe(() => creerDepuisWidget(db, { ...signalement, projet: 'inconnu' })).status
     ).toBe(404)
+  })
+})
+
+describe('lot validé par le client', () => {
+  const { projet: _p, cle: _c, ...retour } = signalement
+  const lot = (corrections: (typeof retour)[]) => ({ projet: 'kawanah', cle: CLE, corrections })
+
+  it('crée tout le lot, identifiants dans l’ordre, une seule révision', () => {
+    const avant = revision()
+    const ids = creerLotDepuisWidget(
+      db,
+      lot([
+        retour,
+        { ...retour, type: 'texte', texte_attendu: ' Mot pour mot ', constat: undefined },
+      ])
+    )
+    expect(ids).toEqual(['REC-001', 'REC-002'])
+    expect(revision()).toBe(avant + 1)
+    expect(listCorrections(db, 'kawanah').map((c) => c.texte_attendu)).toContain(' Mot pour mot ')
+  })
+
+  it('tout ou rien : clé refusée (403) ou projet clos (410), rien n’est créé', () => {
+    expect(erreurDe(() => creerLotDepuisWidget(db, { ...lot([retour]), cle: 'faux' })).status).toBe(
+      403
+    )
+    clore(db, 'kawanah')
+    expect(erreurDe(() => creerLotDepuisWidget(db, lot([retour]))).status).toBe(410)
+    expect(getProjet(db, 'kawanah')!.compteur).toBe(0)
+  })
+
+  it('valide chaque retour et limite la taille du lot', () => {
+    expect(lotSchema.safeParse(lot([retour])).success).toBe(true)
+    expect(lotSchema.safeParse(lot([])).success).toBe(false)
+    expect(lotSchema.safeParse(lot([{ ...retour, constat: undefined }])).success).toBe(false)
+    expect(lotSchema.safeParse(lot(Array(LOT_MAX + 1).fill(retour))).success).toBe(false)
   })
 })
 

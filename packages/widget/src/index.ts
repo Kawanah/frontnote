@@ -1,7 +1,8 @@
 import { forgetActivation, rememberActivation, resolveActivation } from './activation'
-import { checkAccess, pageUrl, postComment } from './api'
-import { collectContext } from './context'
+import { checkAccess, postLot } from './api'
+import { createNotes } from './notes'
 import { mountOverlay } from './overlay'
+import { createSync } from './sync'
 
 export type { Appareil, CommentType } from './types'
 
@@ -30,26 +31,38 @@ export function initFrontNote({ projectId, apiUrl }: FrontNoteOptions): void {
   const cle = found
   started = true
 
+  // Retours gardés dans le navigateur jusqu'à l'envoi du lot, copiés sur le serveur
+  const sync = createSync({ apiUrl, projet: projectId, cle, notes: () => notes })
+  const notes = createNotes(projectId, storage, () => sync.planifier())
+
+  // Lien pour retrouver ses retours ailleurs : ?frontnote=<clé>&carnet=<id>
+  const lienReprise = () => {
+    const id = notes.lire().id
+    if (!id) return null
+    const url = new URL(window.location.pathname, window.location.origin)
+    url.searchParams.set('frontnote', cle)
+    url.searchParams.set('carnet', id)
+    return url.toString()
+  }
+
   const start = () =>
-    mountOverlay((draft) =>
-      postComment(apiUrl, {
-        ...draft,
-        projet: projectId,
-        cle,
-        url: pageUrl(window.location.href),
-        contexte: collectContext(),
-      })
-    )
+    mountOverlay({
+      notes,
+      envoyer: (brouillons) => postLot(apiUrl, { projet: projectId, cle, notes: brouillons }),
+      sauvegarde: sync,
+      lienReprise,
+    })
 
   // Clé vérifiée par le serveur. Refusée (mauvaise clé, projet clos ou inconnu) :
   // le widget ne s'affiche pas et oublie l'activation.
-  void checkAccess(apiUrl, projectId, cle).then((access) => {
+  void checkAccess(apiUrl, projectId, cle).then(async (access) => {
     if (access === 'refused') {
       try {
         forgetActivation(projectId, storage)
       } catch {
         // stockage indisponible : rien à oublier
       }
+      notes.oublier()
       return
     }
     if (access === 'ok') {
@@ -58,6 +71,8 @@ export function initFrontNote({ projectId, apiUrl }: FrontNoteOptions): void {
       } catch {
         // stockage refusé : le widget s'affiche pour cette visite seulement
       }
+      // Copie la plus récente entre ce navigateur et le serveur (ou carnet du lien de reprise)
+      await sync.recuperer(new URLSearchParams(window.location.search).get('carnet'))
     }
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', start, { once: true })

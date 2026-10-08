@@ -8,6 +8,12 @@
       "port": 4400
     },
     {
+      "name": "server-build",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "cd apps/server && PORT=4400 exec node dist/server/entry.mjs"],
+      "port": 4400
+    },
+    {
       "name": "demo",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "5173", "--directory", "packages/widget"],

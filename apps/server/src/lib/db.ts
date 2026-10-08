@@ -113,6 +113,16 @@ export const MIGRATIONS = [
   // dashboard doit pouvoir réafficher le lien ; elle ne donne accès à aucune donnée.
   `ALTER TABLE projets ADD COLUMN cle_activation TEXT;
    UPDATE projets SET cle_activation = lower(hex(randomblob(12)));`,
+
+  // 5 — Carnets du widget : brouillons du client sauvegardés hors de son navigateur,
+  // retrouvables par le lien de reprise ?carnet=<id>. Invisibles pour l'agence et l'agent.
+  `CREATE TABLE carnets (
+     id            TEXT PRIMARY KEY,               -- identifiant secret tiré par le widget
+     projet        TEXT NOT NULL REFERENCES projets (id),
+     contenu       TEXT NOT NULL,                  -- JSON : brouillons, envoyés, numéro suivant
+     mis_a_jour_le TEXT NOT NULL
+   );
+   CREATE INDEX carnets_projet ON carnets (projet);`,
 ]
 
 // Exécute fn dans une transaction : tout ou rien

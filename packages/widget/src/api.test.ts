@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { checkAccess, pageUrl, postComment, type CommentPayload } from './api'
+import { checkAccess, pageUrl, postLot } from './api'
+import type { NoteLocale } from './notes'
 
-const payload: CommentPayload = {
-  projet: 'coress',
-  cle: '8f3a2c',
+const note: NoteLocale = {
+  idLocal: 'a1',
+  numero: 3,
+  creeLe: '2026-10-08T10:00:00.000Z',
   url: 'https://coress.fr/',
   selecteur: 'h1',
   x: 0.5,
@@ -11,7 +13,7 @@ const payload: CommentPayload = {
   type: 'texte',
   appareil: 'ordinateur',
   zone: 'titre « Accueil »',
-  texte_attendu: 'Nouveau titre',
+  texte_attendu: ' Nouveau titre ',
 }
 
 afterEach(() => vi.unstubAllGlobals())
@@ -24,26 +26,45 @@ describe('pageUrl', () => {
   })
 })
 
-describe('postComment', () => {
-  it('envoie en POST JSON vers /api/corrections', async () => {
-    const fetch = vi.fn().mockResolvedValue(new Response('{}', { status: 201 }))
+describe('postLot', () => {
+  const lot = { projet: 'coress', cle: '8f3a2c', notes: [note] }
+
+  it('envoie le lot en POST JSON vers /api/corrections/lot et renvoie les ids', async () => {
+    const fetch = vi.fn().mockResolvedValue(Response.json({ ids: ['REC-004'] }, { status: 201 }))
     vi.stubGlobal('fetch', fetch)
-    await postComment('https://api.test/', payload)
-    expect(fetch).toHaveBeenCalledWith(
-      'https://api.test/api/corrections',
-      expect.objectContaining({ method: 'POST', body: JSON.stringify(payload) })
-    )
+    expect(await postLot('https://api.test/', lot)).toEqual(['REC-004'])
+
+    const [url, init] = fetch.mock.calls[0]!
+    expect(url).toBe('https://api.test/api/corrections/lot')
+    const body = JSON.parse(init.body)
+    expect(body).toMatchObject({ projet: 'coress', cle: '8f3a2c' })
+    // Champs propres au navigateur retirés ; texte du client intact
+    expect(body.corrections).toEqual([
+      {
+        url: 'https://coress.fr/',
+        selecteur: 'h1',
+        x: 0.5,
+        y: 0.5,
+        type: 'texte',
+        appareil: 'ordinateur',
+        zone: 'titre « Accueil »',
+        texte_attendu: ' Nouveau titre ',
+      },
+    ])
   })
 
   it('traduit les erreurs en message lisible', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 429 })))
-    await expect(postComment('https://api.test', payload)).rejects.toThrow(/Trop d'envois/)
+    await expect(postLot('https://api.test', lot)).rejects.toThrow(/Trop d'envois/)
 
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')))
-    await expect(postComment('https://api.test', payload)).rejects.toThrow(/Connexion/)
+    await expect(postLot('https://api.test', lot)).rejects.toThrow(/Connexion/)
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 403 })))
-    await expect(postComment('https://api.test', payload)).rejects.toThrow(/nouveau lien/)
+    await expect(postLot('https://api.test', lot)).rejects.toThrow(/nouveau lien/)
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 410 })))
+    await expect(postLot('https://api.test', lot)).rejects.toThrow(/clos/)
   })
 })
 

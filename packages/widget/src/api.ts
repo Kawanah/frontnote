@@ -1,21 +1,14 @@
-import type { TechContext } from './context'
-import type { Draft } from './types'
+import type { NoteLocale } from './notes'
 
-export interface CommentPayload extends Draft {
-  projet: string
-  cle: string
-  url: string
-  contexte?: TechContext
-}
-
-// URL de la page sans le paramètre d'activation
+// URL de la page sans les paramètres du widget (activation, lien de reprise)
 export function pageUrl(href: string): string {
   const url = new URL(href)
   url.searchParams.delete('frontnote')
+  url.searchParams.delete('carnet')
   return url.toString()
 }
 
-const base = (apiUrl: string) => apiUrl.replace(/\/+$/, '')
+export const base = (apiUrl: string) => apiUrl.replace(/\/+$/, '')
 
 export type Access = 'ok' | 'refused' | 'unreachable'
 
@@ -35,14 +28,13 @@ export async function checkAccess(apiUrl: string, projectId: string, key: string
   }
 }
 
-// apiUrl = adresse du serveur FrontNote (ex. https://frontnote.exemple.fr)
-export async function postComment(apiUrl: string, payload: CommentPayload): Promise<void> {
+async function envoyerJson(url: string, body: unknown): Promise<Response> {
   let response: Response
   try {
-    response = await fetch(`${base(apiUrl)}/api/corrections`, {
+    response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     })
   } catch {
     throw new Error('Connexion impossible, réessayez dans un instant.')
@@ -53,5 +45,39 @@ export async function postComment(apiUrl: string, payload: CommentPayload): Prom
   if (response.status === 403) {
     throw new Error("Lien d'accès périmé : demandez un nouveau lien à l'agence.")
   }
-  if (!response.ok) throw new Error("Le retour n'a pas pu être envoyé.")
+  if (response.status === 410) {
+    throw new Error('Ce projet est clos : il ne reçoit plus de retours.')
+  }
+  if (!response.ok) throw new Error("Les retours n'ont pas pu être envoyés.")
+  return response
+}
+
+export interface LotPayload {
+  projet: string
+  cle: string
+  notes: NoteLocale[]
+}
+
+// Envoie tous les brouillons en une fois (tout ou rien) ; renvoie les ids dans l'ordre.
+// apiUrl = adresse du serveur FrontNote (ex. https://frontnote.exemple.fr)
+export async function postLot(
+  apiUrl: string,
+  { projet, cle, notes }: LotPayload
+): Promise<string[]> {
+  const honey = notes.find((n) => n._honey)?._honey
+  const corrections = notes.map(
+    ({ idLocal: _i, numero: _n, creeLe: _c, _honey: _h, ...retour }) => retour
+  )
+  const response = await envoyerJson(`${base(apiUrl)}/api/corrections/lot`, {
+    projet,
+    cle,
+    corrections,
+    ...(honey ? { _honey: honey } : {}),
+  })
+  try {
+    const { ids } = (await response.json()) as { ids?: unknown }
+    return Array.isArray(ids) ? ids.map(String) : []
+  } catch {
+    return []
+  }
 }
