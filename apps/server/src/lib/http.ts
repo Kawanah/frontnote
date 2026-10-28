@@ -27,9 +27,11 @@ export async function readJson(request: Request, max = MAX_BODY_CHARS): Promise<
   }
 }
 
-// IP du client derrière le proxy O2switch
+// IP du client derrière le proxy O2switch : la dernière adresse de X-Forwarded-For,
+// celle que le proxy a ajoutée. Les précédentes viennent du client, qui peut en
+// inventer une à chaque requête pour échapper aux limites de débit.
 export function clientIp(request: Request, fallback: string): string {
-  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || fallback
+  return request.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() || fallback
 }
 
 // Réponse d'erreur métier, ou 500 sans détail

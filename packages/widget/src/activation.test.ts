@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { forgetActivation, rememberActivation, resolveActivation } from './activation'
+import {
+  adresseSansActivation,
+  forgetActivation,
+  rememberActivation,
+  resolveActivation,
+} from './activation'
 
 function memoryStorage(): Storage {
   const data = new Map<string, string>()
@@ -51,5 +56,21 @@ describe('resolveActivation', () => {
     storage.setItem('frontnote:active:coress', '1')
     expect(resolveActivation('coress', '', storage)).toBeNull()
     expect(storage.getItem('frontnote:active:coress')).toBeNull()
+  })
+})
+
+describe('adresseSansActivation', () => {
+  it('retire la clé et le carnet, garde le reste de l’adresse', () => {
+    expect(
+      adresseSansActivation('https://coress.fr/equipe?tab=2&frontnote=8f3a2c&carnet=abc#bas')
+    ).toBe('https://coress.fr/equipe?tab=2#bas')
+  })
+
+  it('retire aussi ?frontnote=off', () => {
+    expect(adresseSansActivation('https://coress.fr/?frontnote=off')).toBe('https://coress.fr/')
+  })
+
+  it('ne touche pas une adresse sans paramètre du widget', () => {
+    expect(adresseSansActivation('https://coress.fr/equipe?tab=2#bas')).toBeNull()
   })
 })

@@ -7,7 +7,9 @@ export default defineConfig({
   // Adresse publique : sert à la ligne d'installation et à la consigne agent
   site: 'https://frontnote.kawanah.com',
   output: 'server',
-  security: { checkOrigin: false }, // O2switch proxy
+  // O2switch proxy : adresse vue en http, le contrôle d'Astro refuserait tout.
+  // Remplacé par origineRefusee (src/lib/acces.ts) dans le middleware.
+  security: { checkOrigin: false },
   adapter: node({ mode: 'standalone' }),
   build: { inlineStylesheets: 'always' },
   env: {

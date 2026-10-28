@@ -20,3 +20,23 @@ export function sessionRequise(
 ): boolean {
   return !routePublique(pathname) && !sessionValide(cookie, token)
 }
+
+const METHODES_SURES = ['GET', 'HEAD', 'OPTIONS']
+
+// Vrai si un formulaire du dashboard arrive d'une autre origine (CSRF). Le cookie
+// SameSite=strict ne suffit pas : il part aussi depuis un sous-domaine de
+// kawanah.com. Le contrôle d'Astro (checkOrigin) est coupé, l'adresse vue derrière le
+// proxy O2switch étant en http ; on compare donc aussi à l'adresse publique (site).
+// L'API n'est pas concernée : elle n'accepte que des jetons, jamais le cookie, pour écrire.
+export function origineRefusee(
+  method: string,
+  pathname: string,
+  headers: Headers,
+  attendues: readonly string[]
+): boolean {
+  if (METHODES_SURES.includes(method) || /^\/api\//.test(pathname)) return false
+  const origine = headers.get('origin')
+  // Navigateur qui n'envoie pas Origin : il dit quand même d'où vient la requête
+  if (!origine || origine === 'null') return headers.get('sec-fetch-site') !== 'same-origin'
+  return !attendues.includes(origine)
+}

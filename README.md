@@ -115,7 +115,9 @@ La clé est aléatoire et propre au projet ; le nom du projet, lisible dans le
 code du site, n'active rien. Le serveur la vérifie **aussi à chaque envoi** :
 sans elle, impossible de déposer un retour, même en appelant l'API
 directement. « Régénérer la clé » dans le tableau de bord coupe les anciens
-liens.
+liens. La clé et le carnet sont retirés de la barre d'adresse dès le
+chargement : ils ne partent ni dans les statistiques du site ni dans un lien
+copié.
 
 ### Le cycle d'une correction
 
@@ -336,8 +338,9 @@ identifiants FTP (secrets GitHub Actions), la base de données.
   y compris depuis le tableau de bord.
 - **Jetons agents** : seule leur empreinte SHA-256 est stockée ; comparaison
   à temps constant.
-- **Tableau de bord** : session par cookie signé ; en-têtes anti-cadre et
-  anti-devinette de type sur toutes les pages.
+- **Tableau de bord** : session par cookie signé ; formulaires refusés s'ils
+  viennent d'une autre origine (y compris un sous-domaine de kawanah.com) ;
+  en-têtes anti-cadre et anti-devinette de type sur toutes les pages.
 - **Rien d'exposé publiquement** : la route publique `/etat` ne renvoie que
   `ouvert` et `active`, aucune correction.
 - **Aucun module natif** et aucun service tiers : moins de surface, et rien à
