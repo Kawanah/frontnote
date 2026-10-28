@@ -265,13 +265,43 @@ describe('statuts et droits (contrat § 4)', () => {
     ])
   })
 
-  it('refuse une révision périmée', () => {
+  it('refuse une révision périmée : la correction a été écrite depuis la lecture', () => {
     const { id } = creerDepuisWidget(db, signalement)
-    const vieille = revision()
-    creerDepuisWidget(db, signalement) // un autre signalement arrive entre-temps
+    const lue = revision()
+    mettreAJour(db, id, 'agence', { revision: lue, gravite: 'majeure' })
     expect(
-      erreurDe(() => mettreAJour(db, id, 'agence', { revision: vieille, gravite: 'mineure' }))
-        .status
+      erreurDe(() => mettreAJour(db, id, 'agence', { revision: lue, gravite: 'mineure' })).status
+    ).toBe(409)
+  })
+
+  it('une autre écriture du projet ne bloque pas (révision par correction)', () => {
+    const { id } = creerDepuisWidget(db, signalement)
+    const autre = creerDepuisWidget(db, signalement)
+    const lue = revision()
+    creerDepuisWidget(db, signalement) // un retour du client arrive entre-temps
+    mettreAJour(db, autre.id, 'agence', { revision: lue, gravite: 'majeure' })
+    expect(mettreAJour(db, id, 'agence', { revision: lue, gravite: 'mineure' }).gravite).toBe(
+      'mineure'
+    )
+  })
+
+  it('accepte la révision de la correction et renvoie la suivante', () => {
+    const c = creerDepuisWidget(db, signalement)
+    creerDepuisWidget(db, signalement)
+    expect(c.revision).toBeLessThan(revision())
+    const apres = mettreAJour(db, c.id, 'agence', { revision: c.revision, gravite: 'majeure' })
+    expect(apres.revision).toBe(revision())
+    expect(
+      mettreAJour(db, c.id, 'agence', { revision: apres.revision, gravite: 'mineure' }).gravite
+    ).toBe('mineure')
+  })
+
+  it('refuse une révision venue du futur', () => {
+    const { id } = creerDepuisWidget(db, signalement)
+    expect(
+      erreurDe(() =>
+        mettreAJour(db, id, 'agence', { revision: revision() + 1, gravite: 'mineure' })
+      ).status
     ).toBe(409)
   })
 
@@ -447,6 +477,27 @@ describe('clé d’activation du widget', () => {
     v3.close()
     const migree = openDatabase(path)
     expect(getProjet(migree, 'a')!.cle_activation).toMatch(/^[0-9a-f]{24}$/)
+    migree.close()
+  })
+
+  it('migration 6 : les corrections existantes prennent la révision de leur projet', () => {
+    const path = join(mkdtempSync(join(tmpdir(), 'frontnote-')), 'v5.db')
+    const v5 = openDatabase(path)
+    creerProjet(v5, { id: 'kawanah', nom: 'Kawanah Studio' })
+    const { id } = creerDepuisWidget(v5, signalement)
+    creerDepuisWidget(v5, signalement)
+    v5.exec('ALTER TABLE corrections DROP COLUMN revision; PRAGMA user_version = 5')
+    v5.close()
+    const migree = openDatabase(path)
+    const projet = getProjet(migree, 'kawanah')!
+    expect(listCorrections(migree, 'kawanah').map((c) => c.revision)).toEqual([
+      projet.revision,
+      projet.revision,
+    ])
+    // Une révision lue avant la mise en ligne reste acceptée
+    expect(
+      mettreAJour(migree, id, 'agence', { revision: projet.revision, gravite: 'mineure' }).gravite
+    ).toBe('mineure')
     migree.close()
   })
 })

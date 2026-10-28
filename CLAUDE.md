@@ -38,7 +38,7 @@ Premier site équipé : www.kawanah.com (projet `kawanah`, dépôt `Kawanah/Kawa
 
 ## Déploiement (O2switch, https://frontnote.kawanah.com)
 
-- Dépôt `Kawanah/frontnote` (privé). **Un push sur `main` met en ligne** via `.github/workflows/deploy.yml` : tests, lint, types, `bun run paquet`, `verif:serveur` (→ `deploy/frontnote/`), envoi FTPS dans `apps/frontnote/`, redémarrage par `tmp/restart.txt` (Passenger). Sans secrets FTP, rien n'est envoyé.
+- Dépôt `Kawanah/frontnote` (public jusqu'au 2026-11-07 au moins : rien de sensible dedans). **Un push sur `main` met en ligne** via `.github/workflows/deploy.yml` : tests, lint, types, `bun run paquet`, `verif:serveur` (→ `deploy/frontnote/`), envoi FTPS dans `apps/frontnote/`, redémarrage par `tmp/restart.txt` (Passenger). Sans secrets FTP, rien n'est envoyé.
 - Secrets GitHub : `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD` uniquement. `DASHBOARD_TOKEN` et `NODE_ENV=production` vivent dans les variables du Node.js Selector (lues au démarrage, pas au build).
 - Build autonome (`vite.ssr.noExternal: true` dans `astro.config.mjs`) : `dist/` contient toutes les dépendances, le `package.json` déployé n'en a aucune. **Plus besoin de « Run NPM Install »** ; une nouvelle dépendance ne doit pas être native.
 - `GET /api/health` → `{ ok, db, node }` (503 si la base ne s'ouvre pas) : premier réflexe de diagnostic.
@@ -60,7 +60,7 @@ Trois briques **découplées**, c'est le point structurant du projet :
    - `POST /api/corrections` — même chose pour un seul retour ; gardé pour les anciens widgets en cache, le widget actuel n'envoie que des lots
    - `GET /api/projets/:projet/etat?cle=` — public (widget) : `{ ouvert, active }` (active = ouvert et clé valide), 404 si projet inconnu. Rien d'autre n'est exposé
    - `GET /api/projets/:projet/corrections?statut=a_traiter,question_client&lot=&nature=&appareil=` — **vue agent**, JSON au format du § 6 du contrat. Jeton agent du projet, jeton agence ou session du dashboard
-   - `PATCH /api/corrections/:id` `{ revision, statut?, ...champs }` — l'agent n'écrit que les champs du § 5 (schéma strict), l'agence ceux de qualification ; `revision` périmée → 409
+   - `PATCH /api/corrections/:id` `{ revision, statut?, ...champs }` — l'agent n'écrit que les champs du § 5 (schéma strict), l'agence ceux de qualification ; `revision` = celle de la correction (ou de l'en-tête de l'export) : 409 seulement si cette correction a été écrite depuis, la réponse donne la nouvelle
    - Rôles (`lib/auth.ts`) : agence = `DASHBOARD_TOKEN` ; agent = jeton par projet (seule son empreinte SHA-256 est stockée, généré depuis le dashboard) ; client = widget sans jeton
    - Logique métier dans `src/lib/` (testable sans serveur) ; seul `src/lib/runtime.ts` lit `astro:env`. Limiteurs dans `lib/limites.ts` (le frontmatter d'une page Astro s'exécute à chaque requête)
 3. **Dashboard** — pages Astro (`/`, `/projets/:projet`, `/projets/:projet/:id`), session par cookie signé après saisie du jeton agence (`/connexion`, `middleware.ts` ; routes publiques listées dans `lib/acces.ts`, tout le reste exige la session). Formulaires (POST hors `/api/`) refusés en 403 si `Origin` n'est pas le dashboard (`origineRefusee`) : `checkOrigin` d'Astro reste coupé à cause du proxy, et `SameSite=strict` laisse passer les sous-domaines de kawanah.com. Limites de débit par IP = **dernière** adresse de `X-Forwarded-For` (`clientIp`), les premières sont inventables par le client. Qualification, changements de statut, retour de l'agent, historique, accès agent (URL, jeton, consigne CLAUDE.md, « Copier pour l'agent »), ligne d'installation du widget.
@@ -96,7 +96,7 @@ Le modèle suit `/Users/martinlaetitia/Documents/011-KAWANAH-STUDIO/Contrat-corr
 - Statuts et droits : `lib/corrections.ts` (`CIBLES` par rôle, `DEPUIS` par statut, `champsManquants`). L'agent ne pose jamais `validee`.
 - Le client choisit un type simple (texte, couleur, image, lien, bug, autre) → `nature` proposée (`NATURE_PAR_TYPE`), confirmée par l'agence. Écran : Desktop / Mobile / Les deux → `appareil` `ordinateur` / `mobile` / `tous`.
 - `texte_attendu` : jamais retouché, jamais modifiable dans le dashboard (règle 7.1).
-- Chaque écriture incrémente `projets.revision`.
+- Chaque écriture incrémente `projets.revision` et la recopie dans `corrections.revision` des corrections écrites (migration 6, contrat v3 § 9 : le 409 ne porte que sur la correction modifiée).
 
 ## Décisions déjà tranchées (ne pas re-litiger)
 

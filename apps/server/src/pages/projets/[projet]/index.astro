@@ -130,12 +130,13 @@ Contrat : Contrat-corrections-agents.md (statuts, champs, règles du § 7).
 
 - Lire les corrections à traiter :
   curl -s -H "Authorization: Bearer $FRONTNOTE_TOKEN" "${urlAgent}"
-- Mettre à jour une correction (champs du § 5 uniquement, avec la révision lue) :
+- Mettre à jour une correction (champs du § 5 uniquement, avec la « revision » de cette
+  correction ; la réponse donne la nouvelle, à renvoyer pour l'écriture suivante) :
   curl -s -X PATCH -H "Authorization: Bearer $FRONTNOTE_TOKEN" -H "Content-Type: application/json" \\
     -d '{"revision": 12, "statut": "corrigee", "traitement": {"branche": "...", "resume": "...", "verification": "..."}}' \\
     "${origine}/api/corrections/${projet.prefixe}001"
 - FRONTNOTE_TOKEN est dans .env, jamais commité.
-- Réponse 409 (révision périmée) : relire les corrections puis réessayer.
+- Réponse 409 (correction modifiée depuis la lecture) : la relire puis réessayer.
 - Ne jamais passer une correction en « validee ».`
 
 const script = `<script src="${origine}/frontnote.js" data-project="${projet.id}" data-api="${origine}" defer></script>`
