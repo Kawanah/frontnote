@@ -17,7 +17,9 @@
     "format": "prettier --write packages apps",
     "test": "vitest run",
     "prepare": "husky || true",
-    "paquet": "bun run build && sh scripts/paquet-deploiement.sh"
+    "paquet": "bun run build && sh scripts/paquet-deploiement.sh",
+    "typecheck": "tsc -p packages/widget && cd apps/server && astro check",
+    "verif:serveur": "node scripts/verif-serveur.mjs"
   },
   "lint-staged": {
     "*.{ts,mjs,astro}": [
