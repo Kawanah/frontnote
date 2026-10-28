@@ -44,6 +44,7 @@ Premier site équipé : www.kawanah.com (projet `kawanah`, dépôt `Kawanah/Kawa
 - `GET /api/health` → `{ ok, db, node }` (503 si la base ne s'ouvre pas) : premier réflexe de diagnostic.
 - La base (`apps/frontnote/data/`) n'est jamais touchée par le déploiement.
 - **Sauvegarde** : lien « Télécharger une sauvegarde » sur l'accueil du dashboard → `GET /sauvegarde.db` (session agence seule : ni jeton agent ni accès public, la copie contient empreintes des jetons et clés d'activation). Copie par `VACUUM INTO` dans un dossier temporaire supprimé aussitôt (`lib/sauvegarde.ts`), cohérente même en WAL ; ne jamais copier le `.db` à la main pendant que l'app tourne. Pas encore de sauvegarde automatique.
+- **IP du visiteur derrière O2switch** (constaté le 2026-10-28, wifi et 4G) : le proxy envoie `X-Forwarded-For` avec une seule adresse, celle du visiteur (aussi dans `X-Real-IP` et `!~passenger-client-address`) ; l'adresse de connexion vue par Node est `127.0.0.1`. `clientIp` (dernière adresse de `X-Forwarded-For`) est donc juste ; sans en-tête, toutes les requêtes partageraient la même limite.
 - Pièges rencontrés au premier déploiement : nom de variable mal saisi dans le Node.js Selector (`DASHBOARDS_TOKEN`, variable sans nom `=production`) → vérifier les noms lettre par lettre ; module natif (`better-sqlite3`) non installable → uniquement du JS pur ou des modules intégrés à Node.
 
 TypeScript épinglé en `~6.0` : `@typescript-eslint` ne supporte pas TS 7. tsup a besoin de `ignoreDeprecations: '6.0'` pour le build des types.
