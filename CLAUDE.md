@@ -21,7 +21,8 @@ apps/server/       Astro 7 standalone — routes API + dashboard, un seul déplo
 - `bun run build` — widget puis serveur
 - `bun run test` — Vitest ; test ciblé : `bunx vitest run packages/widget/src/activation.test.ts`
 - `bun run lint` / `bun run format`
-- Vérif types : `bunx tsc -p packages/widget` · `cd apps/server && bunx astro check`
+- Vérif types : `bun run typecheck` (`tsc -p packages/widget` puis `astro check`)
+- Garde-fous du serveur compilé : `bun run build && bun run verif:serveur` (`scripts/verif-serveur.mjs` : démarre `dist/` sur une base vide, contrôle l'origine des formulaires et la limite de débit derrière proxy). Un échec bloque la mise en ligne
 - Démo widget : `.claude/launch.json` → `server` (port 4400) + `demo` (port 5173, sert `packages/widget` ; 2 pages : `demo/` et `demo/tarifs.html`). Si `astro dev` échoue (`require is not defined`), `server-build` lance le build (`bun run build` avant ; base `apps/server/data/`, sans `DASHBOARD_TOKEN`) ; ouvrir `http://localhost:5173/demo/?frontnote=<clé du projet demo>` (lien d'accès affiché sur la page du projet) après `bun run build`. Le 4321 est souvent pris par d'autres projets Astro
 - Lancer le build serveur : `cd apps/server && PORT=4321 node dist/server/entry.mjs`
 - Dev : `apps/server/.env` (non versionné) doit contenir `DASHBOARD_TOKEN` pour se connecter au dashboard
@@ -37,7 +38,7 @@ Premier site équipé : www.kawanah.com (projet `kawanah`, dépôt `Kawanah/Kawa
 
 ## Déploiement (O2switch, https://frontnote.kawanah.com)
 
-- Dépôt `Kawanah/frontnote` (privé). **Un push sur `main` met en ligne** via `.github/workflows/deploy.yml` : tests + lint, `bun run paquet` (→ `deploy/frontnote/`), envoi FTPS dans `apps/frontnote/`, redémarrage par `tmp/restart.txt` (Passenger). Sans secrets FTP, rien n'est envoyé.
+- Dépôt `Kawanah/frontnote` (privé). **Un push sur `main` met en ligne** via `.github/workflows/deploy.yml` : tests, lint, types, `bun run paquet`, `verif:serveur` (→ `deploy/frontnote/`), envoi FTPS dans `apps/frontnote/`, redémarrage par `tmp/restart.txt` (Passenger). Sans secrets FTP, rien n'est envoyé.
 - Secrets GitHub : `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD` uniquement. `DASHBOARD_TOKEN` et `NODE_ENV=production` vivent dans les variables du Node.js Selector (lues au démarrage, pas au build).
 - Build autonome (`vite.ssr.noExternal: true` dans `astro.config.mjs`) : `dist/` contient toutes les dépendances, le `package.json` déployé n'en a aucune. **Plus besoin de « Run NPM Install »** ; une nouvelle dépendance ne doit pas être native.
 - `GET /api/health` → `{ ok, db, node }` (503 si la base ne s'ouvre pas) : premier réflexe de diagnostic.
