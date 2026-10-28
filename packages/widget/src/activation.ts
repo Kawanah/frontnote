@@ -1,8 +1,10 @@
 // Activation du widget par lien spécial : ?frontnote=<clé d'activation du projet>
 // La clé est vérifiée par le serveur (checkAccess) puis mémorisée dans le navigateur
 // du client. ?frontnote=off désactive. Les autres visiteurs ne voient rien.
+import { pageUrl } from './api'
 
 const PARAM = 'frontnote'
+const CARNET = 'carnet'
 const OFF = 'off'
 
 const storageKey = (projectId: string) => `frontnote:active:${projectId}`
@@ -33,6 +35,14 @@ export function resolveActivation(
 // Clé acceptée par le serveur : les visites suivantes n'ont plus besoin du lien
 export function rememberActivation(projectId: string, key: string, storage: Storage): void {
   storage.setItem(storageKey(projectId), key)
+}
+
+// Adresse sans la clé ni le carnet (secrets), ou null s'il n'y a rien à retirer.
+// Laissés dans la barre d'adresse, ils partiraient dans les outils de mesure du
+// site, les captures d'écran et les liens copiés.
+export function adresseSansActivation(href: string): string | null {
+  const { searchParams } = new URL(href)
+  return searchParams.has(PARAM) || searchParams.has(CARNET) ? pageUrl(href) : null
 }
 
 // Projet clos ou clé refusée : le lien mémorisé ne réactive plus le widget

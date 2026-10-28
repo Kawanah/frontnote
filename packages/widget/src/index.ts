@@ -1,4 +1,9 @@
-import { forgetActivation, rememberActivation, resolveActivation } from './activation'
+import {
+  adresseSansActivation,
+  forgetActivation,
+  rememberActivation,
+  resolveActivation,
+} from './activation'
 import { checkAccess, postLot } from './api'
 import { createNotes } from './notes'
 import { mountOverlay } from './overlay'
@@ -18,11 +23,23 @@ let started = false
 export function initFrontNote({ projectId, apiUrl }: FrontNoteOptions): void {
   if (typeof window === 'undefined' || started) return
 
+  // Lus avant de nettoyer l'adresse : la clé et le carnet n'y restent pas
+  const search = window.location.search
+  const carnetLien = new URLSearchParams(search).get('carnet')
+  const propre = adresseSansActivation(window.location.href)
+  if (propre) {
+    try {
+      window.history.replaceState(window.history.state, '', propre)
+    } catch {
+      // historique inaccessible (iframe isolée) : l'adresse garde ses paramètres
+    }
+  }
+
   let storage: Storage
   let found: string | null
   try {
     storage = window.localStorage
-    found = resolveActivation(projectId, window.location.search, storage)
+    found = resolveActivation(projectId, search, storage)
   } catch {
     // localStorage indisponible (navigation privée stricte) : widget inactif
     return
@@ -72,7 +89,7 @@ export function initFrontNote({ projectId, apiUrl }: FrontNoteOptions): void {
         // stockage refusé : le widget s'affiche pour cette visite seulement
       }
       // Copie la plus récente entre ce navigateur et le serveur (ou carnet du lien de reprise)
-      await sync.recuperer(new URLSearchParams(window.location.search).get('carnet'))
+      await sync.recuperer(carnetLien)
     }
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', start, { once: true })
