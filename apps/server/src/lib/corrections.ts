@@ -220,6 +220,7 @@ export interface Correction {
   contexte: z.infer<typeof contexteSchema> | null
   cree_le: string
   mis_a_jour_le: string
+  revision: number
   historique: EntreeHistorique[]
 }
 
@@ -361,7 +362,7 @@ export function creerDepuisWidget(db: Db, input: Omit<Signalement, '_honey'>): C
   return transaction(db, () => {
     const projet = projetOuvert(db, input.projet, input.cle)
     const id = insererRetour(db, projet, input)
-    bumpRevision(db, projet.id)
+    marquerRevision(db, [id], bumpRevision(db, projet.id))
     return getCorrection(db, id) as Correction
   })
 }
@@ -371,9 +372,16 @@ export function creerLotDepuisWidget(db: Db, lot: Omit<Lot, '_honey'>): string[]
   return transaction(db, () => {
     const projet = projetOuvert(db, lot.projet, lot.cle)
     const ids = lot.corrections.map((retour) => insererRetour(db, projet, retour))
-    bumpRevision(db, projet.id)
+    marquerRevision(db, ids, bumpRevision(db, projet.id))
     return ids
   })
+}
+
+// Révision du projet à la dernière écriture de ces corrections (contrat v3, § 9)
+function marquerRevision(db: Db, ids: string[], revision: number) {
+  db.prepare(
+    `UPDATE corrections SET revision = ? WHERE id IN (${ids.map(() => '?').join(', ')})`
+  ).run(revision, ...ids)
 }
 
 // --- Statuts (contrat § 4) ---------------------------------------------------
@@ -470,10 +478,12 @@ export function mettreAJour(
     const projet = getProjet(db, actuelle.projet)
     if (!projet) throw new DomainError(404, `Projet inconnu : « ${actuelle.projet} »`)
 
-    if (patch.revision !== projet.revision) {
+    // Révision lue : celle de la correction ou celle du projet (en-tête de l'export).
+    // Refus seulement si cette correction a été écrite depuis la lecture (contrat v3, § 9).
+    if (patch.revision < actuelle.revision || patch.revision > projet.revision) {
       throw new DomainError(
         409,
-        `Révision périmée (${patch.revision} reçue, ${projet.revision} en cours) : rechargez les corrections.`
+        `Révision périmée pour ${id} (${patch.revision} reçue, ${actuelle.revision} pour cette correction) : rechargez-la.`
       )
     }
 
@@ -534,7 +544,7 @@ export function mettreAJour(
         note: historique_note ?? '',
       })
     }
-    bumpRevision(db, projet.id)
+    marquerRevision(db, [id], bumpRevision(db, projet.id))
     return getCorrection(db, id) as Correction
   })
 }
@@ -571,6 +581,8 @@ export function versContrat(c: Correction) {
     note: c.note,
     traitement: c.traitement,
     historique: c.historique,
+    // Révision à renvoyer pour écrire cette correction (contrat v3, § 9)
+    revision: c.revision,
     // Hors contrat : pour retrouver l'élément exact sur la page
     ancrage: { url: c.url, selecteur: c.selecteur, x: c.x, y: c.y },
     type_client: c.type_client,

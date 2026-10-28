@@ -123,6 +123,13 @@ export const MIGRATIONS = [
      mis_a_jour_le TEXT NOT NULL
    );
    CREATE INDEX carnets_projet ON carnets (projet);`,
+
+  // 6 — Révision par correction (contrat v3, § 9) : révision du projet au moment de la
+  // dernière écriture de cette correction. Le 409 ne porte plus que sur elle : un retour
+  // du client ou l'écriture d'une autre correction ne bloque plus l'agent.
+  `ALTER TABLE corrections ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;
+   UPDATE corrections
+      SET revision = (SELECT revision FROM projets WHERE projets.id = corrections.projet);`,
 ]
 
 // Exécute fn dans une transaction : tout ou rien
