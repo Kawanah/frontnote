@@ -9,7 +9,22 @@ export default defineConfig({
   output: 'server',
   // O2switch proxy : adresse vue en http, le contrôle d'Astro refuserait tout.
   // Remplacé par origineRefusee (src/lib/acces.ts) dans le middleware.
-  security: { checkOrigin: false },
+  security: {
+    checkOrigin: false,
+    // CSP des pages du dashboard : scripts et styles d'Astro autorisés par empreinte,
+    // rien d'extérieur. Balise <meta> : frame-ancestors y est ignoré (X-Frame-Options
+    // dans le middleware le remplace).
+    csp: {
+      directives: [
+        "default-src 'self'",
+        "img-src 'self' data:",
+        "connect-src 'self'",
+        "form-action 'self'",
+        "base-uri 'self'",
+        "object-src 'none'",
+      ],
+    },
+  },
   adapter: node({ mode: 'standalone' }),
   build: { inlineStylesheets: 'always' },
   env: {

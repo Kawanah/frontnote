@@ -199,10 +199,10 @@ const lieu = c.lieu_correction ?? defauts.lieu_correction
             <div>
               <dt class="etiquette">Couleur souhaitée</dt>
               <dd class="flex items-center gap-2">
-                <span
-                  class="inline-block size-4 rounded border border-line"
-                  style={`background:${c.couleur}`}
-                ></span>
+                {/* Attribut fill plutôt que style : permis par la CSP du dashboard */}
+                <svg class="size-4 rounded border border-line" viewBox="0 0 1 1" aria-hidden="true">
+                  <rect width="1" height="1" fill={c.couleur} />
+                </svg>
                 <span class="font-mono">{c.couleur}</span>
               </dd>
             </div>

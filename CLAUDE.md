@@ -125,3 +125,4 @@ Le modèle suit `/Users/martinlaetitia/Documents/011-KAWANAH-STUDIO/Contrat-corr
 - Brevo en fetch natif, pas de SDK
 - Valider toute entrée de l'API avec Zod ; l'API reçoit des requêtes de domaines tiers (sites clients) → CORS et rate limiting à traiter
 - Secrets uniquement dans `.env` (modèle : `apps/server/.env.exemple`)
+- Dashboard sous CSP stricte (`security.csp` d'Astro, empreintes des scripts et styles, en-tête HTTP) + HSTS (`middleware.ts`) : ni `onclick`/`onsubmit`, ni attribut `style` dans les pages ; passer par un `<script>` et des attributs `data-*`

@@ -19,6 +19,10 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
       response.headers.set('X-Frame-Options', 'DENY')
       response.headers.set('X-Content-Type-Options', 'nosniff')
       response.headers.set('Referrer-Policy', 'same-origin')
+      // HTTPS imposé au navigateur pour un an (pas en local, servi en http)
+      if (import.meta.env.PROD) {
+        response.headers.set('Strict-Transport-Security', 'max-age=31536000')
+      }
     } catch {
       // réponse aux en-têtes figés (redirection) : rien à ajouter
     }
