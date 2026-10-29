@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   avecParam,
   filtreDepuisParams,
+  lienListe,
   ONGLETS,
   ongletDepuisParams,
   requeteFiltre,
@@ -47,6 +48,14 @@ describe('filtre partagé entre la liste et la fiche', () => {
     expect(requeteFiltre(params('ok'))).toBe('')
     expect(avecParam('', 'ok')).toBe('?ok')
     expect(avecParam('?statut=nouvelle', 'ok')).toBe('?statut=nouvelle&ok')
+  })
+
+  it('lien de retour à la liste : « ? » s’il n’y a pas de filtre', () => {
+    expect(lienListe('monstade', '', 'fait=MON-005')).toBe('/projets/monstade?fait=MON-005')
+    expect(lienListe('monstade', '?statut=en_cours', 'fait=MON-005')).toBe(
+      '/projets/monstade?statut=en_cours&fait=MON-005'
+    )
+    expect(lienListe('monstade', '?statut=en_cours')).toBe('/projets/monstade?statut=en_cours')
   })
 })
 

@@ -59,10 +59,12 @@ describe('statutDepuisForm', () => {
 })
 
 describe('erreurs sur les champs repliés de la fiche', () => {
-  it('rouvrent « Détails pour l’agent » quand elles les citent', () => {
+  it('rouvrent « Plus de champs » quand elles les citent', () => {
+    expect(erreurSurDetails('zone : trop long')).toBe(true)
+    // Lieu et lot sont désormais visibles : pas besoin de rouvrir
     expect(
       erreurSurDetails('Pour passer en « À traiter », il manque : gravité, lieu de correction')
-    ).toBe(true)
+    ).toBe(false)
     expect(erreurSurDetails('source_texte.lien : URL invalide')).toBe(true)
     expect(erreurSurDetails('ligne_suivi : nombre attendu')).toBe(true)
     expect(erreurSurDetails('Pour passer en « À traiter », il manque : gravité, attendu')).toBe(
