@@ -14,14 +14,37 @@ import {
 // Paramètres de filtre gardés d'un écran à l'autre
 const CLES_FILTRE = ['statut', 'nature', 'appareil', 'lot'] as const
 
-// Filtre de la liste ; par défaut, les demandes ouvertes
+// Onglets de la liste : ce qui attend chacun, dans l'ordre du circuit
+export const ONGLETS = [
+  { cle: 'qualifier', label: 'À qualifier', statuts: ['nouvelle'] },
+  {
+    cle: 'en_cours',
+    label: 'En cours',
+    statuts: ['a_traiter', 'en_cours', 'question_client', 'a_faire_client'],
+  },
+  { cle: 'verifier', label: 'À vérifier', statuts: ['corrigee', 'en_ligne'] },
+  { cle: 'fermees', label: 'Fermées', statuts: STATUTS_FERMES },
+] as const satisfies readonly { cle: string; label: string; statuts: readonly Statut[] }[]
+
+export type Onglet = (typeof ONGLETS)[number]['cle']
+
+// Onglet affiché ; par défaut, ce qui attend la qualification
+export const ongletDepuisParams = (params: URLSearchParams): Onglet | null => {
+  const choix = params.get('statut') ?? ''
+  if (!choix) return 'qualifier'
+  return ONGLETS.find((o) => o.cle === choix)?.cle ?? null
+}
+
+// Filtre de la liste : un onglet, un statut précis (anciens liens) ou « toutes »
 export function filtreDepuisParams(params: URLSearchParams): Filtre {
   const choixStatut = params.get('statut') ?? ''
   const nature = params.get('nature') as Nature
   const appareil = params.get('appareil') as Appareil
+  const onglet = ONGLETS.find((o) => o.cle === ongletDepuisParams(params))
   return {
-    statut:
-      choixStatut === 'toutes'
+    statut: onglet
+      ? [...onglet.statuts]
+      : choixStatut === 'toutes'
         ? undefined
         : STATUTS.includes(choixStatut as Statut)
           ? [choixStatut as Statut]

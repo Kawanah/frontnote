@@ -1,0 +1,398 @@
+---
+import Layout from '../../../layouts/Layout.astro'
+import { dateCourte } from '../../../lib/affichage'
+import { nouveauJeton } from '../../../lib/auth'
+import { clore, exporterProjet } from '../../../lib/corrections'
+import {
+  getProjet,
+  regenererCle,
+  rouvrirProjet,
+  setJetonAgent,
+  updateReglages,
+} from '../../../lib/projets'
+import { getDb } from '../../../lib/runtime'
+import { NATURE_LABELS, NATURES, type Nature } from '../../../lib/vocabulaire'
+
+const db = getDb()
+const projet = getProjet(db, Astro.params.projet ?? '')
+if (!projet) return new Response('Projet inconnu', { status: 404 })
+
+let jetonAffiche = ''
+let erreur = ''
+let erreurCloture = ''
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData()
+  const action = form.get('_action')
+  if (action === 'jeton') {
+    const { jeton, empreinte } = nouveauJeton()
+    setJetonAgent(db, projet.id, empreinte)
+    projet.jeton_agent = empreinte
+    jetonAffiche = jeton
+  } else if (action === 'cle') {
+    regenererCle(db, projet.id)
+    return Astro.redirect(`/projets/${projet.id}/reglages`)
+  } else if (action === 'reglages') {
+    try {
+      updateReglages(db, projet.id, {
+        nom: String(form.get('nom')),
+        natures: form.getAll('natures') as Nature[],
+      })
+      return Astro.redirect(`/projets/${projet.id}/reglages`)
+    } catch {
+      erreur = 'Réglages invalides : un nom et au moins une nature active.'
+    }
+  } else if (action === 'clore') {
+    if (form.get('archive') !== 'oui' || form.get('confirmation') !== projet.id) {
+      erreurCloture = `Cochez l'archive et tapez exactement « ${projet.id} » pour confirmer.`
+    } else {
+      const supprimees = clore(db, projet.id)
+      return Astro.redirect(`/projets/${projet.id}/reglages?clos=${supprimees}`)
+    }
+  } else if (action === 'rouvrir') {
+    rouvrirProjet(db, projet.id)
+    return Astro.redirect(`/projets/${projet.id}/reglages`)
+  }
+}
+const supprimees = Astro.url.searchParams.get('clos')
+
+// Vue agent : même donnée, au format du contrat
+const exportAgent = JSON.stringify(
+  exporterProjet(db, projet.id, { statut: ['a_traiter'] }),
+  null,
+  2
+)
+// En production, l'adresse publique (derrière le proxy O2switch, Astro.url peut être en http)
+const origine = import.meta.env.PROD && Astro.site ? Astro.site.origin : Astro.url.origin
+const urlAgent = `${origine}/api/projets/${projet.id}/corrections?statut=a_traiter`
+const consigne = `## Corrections (FrontNote)
+
+Les corrections de ce site vivent dans FrontNote : c'est la source unique.
+Contrat : Contrat-corrections-agents.md (statuts, champs, règles du § 7).
+
+- Lire les corrections à traiter :
+  curl -s -H "Authorization: Bearer $FRONTNOTE_TOKEN" "${urlAgent}"
+- Mettre à jour une correction (champs du § 5 uniquement, avec la « revision » de cette
+  correction ; la réponse donne la nouvelle, à renvoyer pour l'écriture suivante) :
+  curl -s -X PATCH -H "Authorization: Bearer $FRONTNOTE_TOKEN" -H "Content-Type: application/json" \\
+    -d '{"revision": 12, "statut": "corrigee", "traitement": {"branche": "...", "resume": "...", "verification": "..."}}' \\
+    "${origine}/api/corrections/${projet.prefixe}001"
+- FRONTNOTE_TOKEN est dans .env, jamais commité.
+- Réponse 409 (correction modifiée depuis la lecture) : la relire puis réessayer.
+- Ne jamais passer une correction en « validee ».`
+
+const script = `<script src="${origine}/frontnote.js" data-project="${projet.id}" data-api="${origine}" defer></script>`
+// Début de projet : consigne à coller dans la session Claude Code du site
+const installation = `## Installer FrontNote sur ce site (projet « ${projet.id} »)
+
+FrontNote recueille les retours du client directement sur le site. Installer le widget, dans une seule PR :
+
+1. Ajouter cette balise une seule fois, dans le layout commun à toutes les pages, juste avant </body> (site Astro : ajouter is:inline dans la balise) :
+   ${script}
+2. Si le site a une Content-Security-Policy : ajouter ${origine} dans script-src ET connect-src. Vérifier que la CSP s'applique aussi aux pages pré-générées.
+3. Ajouter au CLAUDE.md du site la section « Corrections (FrontNote) » ci-dessous, telle quelle.
+4. Vérifier que .env est ignoré par git. Ne pas inventer FRONTNOTE_TOKEN : l'humain l'ajoute lui-même au .env (jeton agent généré dans le dashboard FrontNote).
+5. Vérifier le build, ouvrir la PR. Ne pas pousser sur la branche principale sans accord : c'est une mise en ligne.
+
+Le lien d'accès du client (?frontnote=…) ne va jamais dans le code.
+
+--- Section à ajouter au CLAUDE.md du site ---
+
+${consigne}`
+// Fin de projet : consigne pour que l'agent retire FrontNote du site
+const retrait = `## Retirer FrontNote du site (projet « ${projet.id} » clos)
+
+FrontNote est terminé pour ce site : retirer toute trace du widget, dans une seule PR.
+
+- Supprimer la balise du widget (souvent dans le layout, avant </body>) :
+  ${script}
+- Retirer ${origine} des directives script-src et connect-src de la CSP.
+- Retirer FRONTNOTE_TOKEN du .env et la section « Corrections (FrontNote) » du CLAUDE.md.
+- Vérifier le build, ouvrir la PR. Ne pas pousser sur la branche principale sans accord : c'est une mise en ligne.`
+// Domaine à autoriser dans la CSP du site client
+const csp = `script-src  … ${origine}
+connect-src … ${origine}`
+---
+
+<Layout
+  title={`Réglages · ${projet.nom}`}
+  fil={[[projet.nom, `/projets/${projet.id}`], ['Réglages']]}
+>
+  <h1 class="mb-6 text-2xl font-bold tracking-tight">Réglages</h1>
+
+  {projet.clos_le && (
+    <div class="mb-4 space-y-3 rounded-md border border-line bg-paper p-4 text-sm">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p>
+          <span class="font-semibold">Projet clos le {dateCourte(projet.clos_le)}.</span>{' '}
+          {supprimees !== null &&
+            `${supprimees} correction${Number(supprimees) > 1 ? 's' : ''} supprimée${Number(supprimees) > 1 ? 's' : ''}. `}
+          Le widget ne s'affiche plus sur le site du client.
+        </p>
+        <form method="post">
+          <input type="hidden" name="_action" value="rouvrir" />
+          <button class="bouton">Rouvrir le projet</button>
+        </form>
+      </div>
+      <details>
+        <summary class="cursor-pointer font-semibold">
+          Consigne pour l'agent : retirer le widget du site
+        </summary>
+        <pre
+          id="retrait"
+          class="mt-2 overflow-x-auto rounded-md bg-surface p-3 font-mono text-xs whitespace-pre-wrap"
+        >{retrait}</pre>
+        <button type="button" class="bouton mt-2" data-copier="#retrait">
+          Copier la consigne
+        </button>
+      </details>
+    </div>
+  )}
+
+  <section class="grid gap-6 lg:grid-cols-2">
+    <div class="carte space-y-4">
+      <h2 class="font-bold">Accès agent</h2>
+      <p class="text-sm text-muted">
+        L'agent de code lit ce dashboard au format du contrat, et y écrit ses retours. Ils
+        apparaissent aussitôt ici.
+      </p>
+
+      <div>
+        <span class="etiquette">Vue agent (corrections à traiter)</span>
+        <a
+          href={urlAgent}
+          class="block truncate font-mono text-xs text-info underline"
+          target="_blank"
+        >
+          {urlAgent}
+        </a>
+      </div>
+
+      {jetonAffiche ? (
+        <div class="rounded-md border border-warn bg-warn-soft p-3 text-sm">
+          <p class="font-semibold text-warn">
+            Jeton agent : copiez-le maintenant, il ne sera plus affiché.
+          </p>
+          <p class="mt-1 text-muted">À mettre dans le .env du site : FRONTNOTE_TOKEN=…</p>
+          <div class="mt-2 flex gap-2">
+            <code
+              id="jeton"
+              class="min-w-0 flex-1 truncate rounded bg-surface px-2 py-1 font-mono text-xs"
+            >
+              {jetonAffiche}
+            </code>
+            <button type="button" class="bouton" data-copier="#jeton">
+              Copier
+            </button>
+          </div>
+        </div>
+      ) : (
+        <form method="post" class="flex flex-wrap items-center justify-between gap-3">
+          <input type="hidden" name="_action" value="jeton" />
+          <p class="text-sm">
+            {projet.jeton_agent ? (
+              'Jeton agent configuré.'
+            ) : (
+              <span class="text-accent">Aucun jeton agent.</span>
+            )}
+          </p>
+          <button class="bouton">
+            {projet.jeton_agent ? 'Remplacer le jeton' : 'Générer un jeton'}
+          </button>
+        </form>
+      )}
+
+      <details>
+        <summary class="cursor-pointer text-sm font-semibold">
+          Consigne pour le CLAUDE.md du site
+        </summary>
+        <pre
+          id="consigne"
+          class="mt-2 overflow-x-auto rounded-md bg-paper p-3 font-mono text-xs whitespace-pre-wrap"
+        >{consigne}</pre>
+        <button type="button" class="bouton mt-2" data-copier="#consigne">
+          Copier la consigne
+        </button>
+      </details>
+
+      <details>
+        <summary class="cursor-pointer text-sm font-semibold">
+          Export JSON (agent sans jeton)
+        </summary>
+        <p class="mt-2 text-xs text-muted">
+          Corrections « À traiter », à coller dans Claude Code si l'agent n'a pas de jeton.
+        </p>
+        <pre
+          id="export"
+          class="mt-2 max-h-72 overflow-auto rounded-md bg-paper p-3 font-mono text-xs"
+        >{exportAgent}</pre>
+        <button type="button" class="bouton mt-2" data-copier="#export">
+          Copier le JSON
+        </button>
+      </details>
+    </div>
+
+    <div class="space-y-6">
+      <div class="carte space-y-3">
+        <h2 class="font-bold">Installation du widget</h2>
+        <p class="text-sm text-muted">
+          Une ligne avant la fermeture de &lt;/body&gt;, puis envoyer au client le lien d'accès
+          ci-dessous.
+        </p>
+        <pre
+          id="script"
+          class="overflow-x-auto rounded-md bg-paper p-3 font-mono text-xs whitespace-pre-wrap"
+        >{script}</pre>
+        <button type="button" class="bouton" data-copier="#script">
+          Copier
+        </button>
+        <p class="text-xs text-muted">
+          Site Astro : ajouter <span class="font-mono">is:inline</span> dans la balise.
+        </p>
+        <details class="rounded-md border border-line p-3 text-sm">
+          <summary class="cursor-pointer font-semibold">
+            Consigne pour l'agent : installer le widget
+          </summary>
+          <p class="mt-2 text-muted">
+            À coller dans une session Claude Code ouverte sur le dépôt du site. Elle contient la
+            balise, la CSP et la section à ajouter au CLAUDE.md. Le jeton agent, vous l'ajoutez
+            vous-même au .env du site.
+          </p>
+          <pre
+            id="installation"
+            class="mt-2 max-h-72 overflow-auto rounded-md bg-paper p-3 font-mono text-xs whitespace-pre-wrap"
+          >{installation}</pre>
+          <button type="button" class="bouton mt-2" data-copier="#installation">
+            Copier la consigne
+          </button>
+        </details>
+        <div class="space-y-2 rounded-md border border-line p-3 text-sm">
+          <p class="font-semibold">Lien d'accès pour le client</p>
+          <p class="text-muted">
+            À ajouter à l'adresse de n'importe quelle page du site. Sans cette clé, le widget reste
+            invisible et le serveur refuse les retours.
+          </p>
+          <div class="flex gap-2">
+            <code
+              id="lien-acces"
+              class="min-w-0 flex-1 truncate rounded bg-paper px-2 py-1 font-mono text-xs"
+            >
+              ?frontnote={projet.cle_activation}
+            </code>
+            <button type="button" class="bouton" data-copier="#lien-acces">
+              Copier
+            </button>
+          </div>
+          <form
+            method="post"
+            onsubmit="return confirm('Les liens déjà envoyés cesseront de fonctionner. Continuer ?')"
+          >
+            <input type="hidden" name="_action" value="cle" />
+            <button class="text-xs text-muted underline">
+              Régénérer la clé (les anciens liens cessent de marcher)
+            </button>
+          </form>
+        </div>
+        <div class="rounded-md border border-warn bg-warn-soft p-3 text-sm">
+          <p class="font-semibold text-warn">Si le site a une CSP (Content-Security-Policy)</p>
+          <p class="mt-1 text-muted">
+            Ajouter ce domaine aux deux directives, sinon le navigateur bloque le widget sans
+            message visible. Vérifier aussi que la CSP s'applique vraiment aux pages pré-générées
+            (en-têtes de la page en ligne).
+          </p>
+          <pre
+            id="csp"
+            class="mt-2 overflow-x-auto rounded bg-surface p-2 font-mono text-xs"
+          >{csp}</pre>
+          <button type="button" class="bouton mt-2" data-copier="#csp">
+            Copier
+          </button>
+        </div>
+      </div>
+
+      <details class="carte" open={erreur !== ''}>
+        <summary class="cursor-pointer font-bold">Réglages du projet</summary>
+        <form method="post" class="mt-4 space-y-4">
+          <input type="hidden" name="_action" value="reglages" />
+          <label class="block">
+            <span class="etiquette">Nom</span>
+            <input class="champ" name="nom" value={projet.nom} required maxlength="100" />
+          </label>
+          <fieldset>
+            <legend class="etiquette">Natures actives (fiche projet, § 10)</legend>
+            <div class="grid grid-cols-2 gap-2 text-sm">
+              {NATURES.map((n) => (
+                <label class="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name="natures"
+                    value={n}
+                    checked={projet.natures.includes(n)}
+                  />
+                  {NATURE_LABELS[n]}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          {erreur && (
+            <p class="text-sm text-danger" role="alert">
+              {erreur}
+            </p>
+          )}
+          <button class="bouton-principal">Enregistrer</button>
+        </form>
+      </details>
+
+      {!projet.clos_le && (
+        <details class="carte border-danger" open={erreurCloture !== ''}>
+          <summary class="cursor-pointer font-bold text-danger">Clore le projet</summary>
+          <div class="mt-4 space-y-4 text-sm">
+            <p class="text-muted">
+              Fin de projet : supprime définitivement les corrections et leur historique, retire le
+              jeton agent et fait disparaître le widget du site. Le préfixe{' '}
+              <span class="font-mono">{projet.prefixe}</span> reste réservé à ce projet.
+            </p>
+            <a href={`/projets/${projet.id}/archive.json`} class="bouton inline-block">
+              1. Télécharger l'archive (JSON)
+            </a>
+            <form method="post" class="space-y-3">
+              <input type="hidden" name="_action" value="clore" />
+              <label class="flex items-center gap-2">
+                <input type="checkbox" name="archive" value="oui" required />
+                2. J'ai téléchargé et rangé l'archive
+              </label>
+              <label class="block">
+                <span class="etiquette">
+                  3. Tapez <span class="font-mono">{projet.id}</span> pour confirmer
+                </span>
+                <input class="champ font-mono" name="confirmation" required autocomplete="off" />
+              </label>
+              {erreurCloture && (
+                <p class="text-danger" role="alert">
+                  {erreurCloture}
+                </p>
+              )}
+              <button class="bouton border-danger text-danger">
+                Clore et supprimer les corrections
+              </button>
+            </form>
+          </div>
+        </details>
+      )}
+    </div>
+  </section>
+</Layout>
+
+<script>
+  // Boutons « Copier » : copient le texte de l'élément ciblé
+  document.querySelectorAll<HTMLButtonElement>('[data-copier]').forEach((bouton) => {
+    bouton.addEventListener('click', async () => {
+      const cible = document.querySelector(bouton.dataset.copier ?? '')
+      if (!cible?.textContent) return
+      await navigator.clipboard.writeText(cible.textContent.trim())
+      const libelle = bouton.textContent
+      bouton.textContent = 'Copié'
+      setTimeout(() => (bouton.textContent = libelle), 1500)
+    })
+  })
+</script>

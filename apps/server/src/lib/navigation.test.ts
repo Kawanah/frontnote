@@ -1,14 +1,33 @@
 import { describe, expect, it } from 'vitest'
-import { avecParam, filtreDepuisParams, requeteFiltre, voisines } from './navigation'
-import { STATUTS_FERMES } from './vocabulaire'
+import {
+  avecParam,
+  filtreDepuisParams,
+  ONGLETS,
+  ongletDepuisParams,
+  requeteFiltre,
+  voisines,
+} from './navigation'
+import { STATUTS, STATUTS_FERMES } from './vocabulaire'
 
 const params = (texte: string) => new URLSearchParams(texte)
 
 describe('filtre partagé entre la liste et la fiche', () => {
-  it('par défaut : les demandes ouvertes', () => {
-    const { statut } = filtreDepuisParams(params(''))
-    expect(statut?.length).toBeGreaterThan(0)
-    expect(statut?.some((s) => STATUTS_FERMES.includes(s))).toBe(false)
+  it('par défaut : l’onglet « À qualifier »', () => {
+    expect(ongletDepuisParams(params(''))).toBe('qualifier')
+    expect(filtreDepuisParams(params('')).statut).toEqual(['nouvelle'])
+  })
+
+  it('un onglet regroupe ses statuts ; les anciens liens par statut marchent encore', () => {
+    expect(filtreDepuisParams(params('statut=fermees')).statut).toEqual([...STATUTS_FERMES])
+    expect(filtreDepuisParams(params('statut=en_cours')).statut).toContain('question_client')
+    expect(ongletDepuisParams(params('statut=corrigee'))).toBeNull()
+    expect(filtreDepuisParams(params('statut=corrigee')).statut).toEqual(['corrigee'])
+  })
+
+  it('chaque statut est dans un seul onglet', () => {
+    const tous = ONGLETS.flatMap((o) => o.statuts)
+    expect(new Set(tous).size).toBe(tous.length)
+    expect(tous.length).toBe(STATUTS.length)
   })
 
   it('lit statut, nature, appareil et lot ; ignore les valeurs inconnues', () => {

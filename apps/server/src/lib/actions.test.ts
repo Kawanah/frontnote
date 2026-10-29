@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { actionsRapides } from './actions'
+import { actionsRapides, passerATraiter, qualificationParDefaut } from './actions'
 import { creerDepuisWidget, getCorrection, mettreAJour, type Correction } from './corrections'
 import { openDatabase, type Db } from './db'
 import { createProjet, getProjet } from './projets'
@@ -39,16 +39,26 @@ const qualifier = (id: string) =>
   })
 
 describe('boutons rapides de la liste', () => {
-  it('nouvelle non qualifiée : « Qualifier » vers la fiche, avec les champs manquants', () => {
+  it('nouvelle sans attendu : saisie dans la ligne, le reste a une valeur par défaut', () => {
     const a = actionsRapides(nouvelle())
-    expect(a.aTraiter).toBe('qualifier')
-    expect(a.manquants).toEqual(['gravité', 'lieu de correction', 'attendu'])
+    expect(a.aTraiter).toBe('attendu')
+    expect(a.manquants).toEqual(['attendu'])
+    expect(a.defauts).toMatchObject({ gravite: 'mineure', lieu_correction: 'code' })
+    expect(a.defauts.lot).toMatch(/^retours-\d{4}-\d{2}-\d{2}$/)
     expect(a.refuser).toBe(true)
+  })
+
+  it('nature inconnue (type « autre ») : passage par la fiche', () => {
+    const c = nouvelle()
+    db.prepare('UPDATE corrections SET nature = NULL WHERE id = ?').run(c.id)
+    const a = actionsRapides(getCorrection(db, c.id)!)
+    expect(a.aTraiter).toBe('qualifier')
+    expect(a.manquants).toContain('nature')
   })
 
   it('nouvelle qualifiée : bouton « À traiter » direct', () => {
     const c = nouvelle()
-    expect(actionsRapides(qualifier(c.id))).toEqual({
+    expect(actionsRapides(qualifier(c.id))).toMatchObject({
       aTraiter: 'bouton',
       manquants: [],
       refuser: true,
@@ -69,7 +79,46 @@ describe('boutons rapides de la liste', () => {
     expect(actionsRapides(getCorrection(db, c.id)!)).toEqual({
       aTraiter: null,
       manquants: [],
+      defauts: {},
       refuser: false,
     })
+  })
+})
+
+describe('passage rapide « À traiter »', () => {
+  it('pose les valeurs par défaut et l’attendu saisi dans la ligne', () => {
+    const c = nouvelle()
+    const apres = passerATraiter(db, c, revision(), '  Photo nette  ')
+    expect(apres).toMatchObject({
+      statut: 'a_traiter',
+      gravite: 'mineure',
+      lieu_correction: 'code',
+      attendu: 'Photo nette',
+    })
+    expect(apres.historique.at(-1)).toMatchObject({ de: 'nouvelle', vers: 'a_traiter' })
+  })
+
+  it('ne remplace rien de ce que l’agence a saisi', () => {
+    const c = qualifier(nouvelle().id)
+    mettreAJour(db, c.id, 'agence', {
+      revision: revision(),
+      gravite: 'bloquante',
+      lot: 'recette-1',
+    })
+    const apres = passerATraiter(db, getCorrection(db, c.id)!, revision(), 'autre chose')
+    expect(apres).toMatchObject({ gravite: 'bloquante', lot: 'recette-1', attendu: 'Photo nette' })
+  })
+
+  it('gravité proposée selon la nature', () => {
+    const c = nouvelle()
+    expect(qualificationParDefaut({ ...c, nature: 'bug' }).gravite).toBe('majeure')
+    expect(qualificationParDefaut({ ...c, nature: 'securite' }).gravite).toBe('bloquante')
+    expect(qualificationParDefaut({ ...c, nature: 'contenu_cms' }).lieu_correction).toBe('cms')
+    expect(qualificationParDefaut(c, '2026-10-29').lot).toBe('retours-2026-10-29')
+  })
+
+  it('sans attendu : refusé comme depuis la fiche', () => {
+    const c = nouvelle()
+    expect(() => passerATraiter(db, c, revision())).toThrow(/attendu/)
   })
 })
