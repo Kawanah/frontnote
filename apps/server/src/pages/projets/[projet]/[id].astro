@@ -11,13 +11,19 @@ import {
   transitionsPossibles,
 } from '../../../lib/corrections'
 import { DomainError } from '../../../lib/errors'
-import { RAISONS_REFUS } from '../../../lib/actions'
+import { qualificationParDefaut } from '../../../lib/actions'
 import {
   erreurSurDetails,
   qualificationDepuisForm,
   statutDepuisForm,
 } from '../../../lib/formulaires'
-import { avecParam, filtreDepuisParams, requeteFiltre, voisines } from '../../../lib/navigation'
+import {
+  avecParam,
+  filtreDepuisParams,
+  lienListe,
+  requeteFiltre,
+  voisines,
+} from '../../../lib/navigation'
 import { getProjet } from '../../../lib/projets'
 import { getDb } from '../../../lib/runtime'
 import {
@@ -40,7 +46,7 @@ if (!projet || !correction || correction.projet !== projet.id) {
 
 // Même filtre que la liste : retour, précédente et suivante suivent son ordre
 const requete = requeteFiltre(Astro.url.searchParams)
-const liste = `/projets/${projet.id}${requete}`
+const liste = lienListe(projet.id, requete)
 const lienFiche = (id: string, param?: string) =>
   `/projets/${projet.id}/${id}${param ? avecParam(requete, param) : requete}`
 const ordre = listCorrections(db, projet.id, filtreDepuisParams(Astro.url.searchParams)).map(
@@ -67,7 +73,7 @@ if (Astro.request.method === 'POST') {
         return Astro.redirect(
           suivante
             ? lienFiche(suivante, `fait=${correction.id}`)
-            : avecParam(liste, `fait=${correction.id}`)
+            : lienListe(projet.id, requete, `fait=${correction.id}`)
         )
       }
       return Astro.redirect(lienFiche(correction.id, 'ok'))
@@ -102,6 +108,10 @@ const versTraiter = c.statut === 'nouvelle' && passages.includes('a_traiter')
 // Bloc replié : ouvert d'office si l'erreur porte sur un de ses champs
 const detailsOuverts = erreur !== '' && erreurSurDetails(erreur)
 const texteClient = c.nature === 'texte' || Boolean(c.texte_attendu)
+// Nouvelle demande : gravité, lieu et lot proposés comme dans la liste
+const defauts = versTraiter ? qualificationParDefaut(c) : {}
+const gravite = c.gravite ?? defauts.gravite
+const lieu = c.lieu_correction ?? defauts.lieu_correction
 ---
 
 <Layout title={`${c.id} · ${projet.nom}`} fil={[[projet.nom, liste], [c.id]]}>
@@ -185,12 +195,6 @@ const texteClient = c.nature === 'texte' || Boolean(c.texte_attendu)
           )}
         </div>
         <dl class="grid gap-3 text-sm sm:grid-cols-2">
-          {c.type_client && (
-            <div>
-              <dt class="etiquette">Type choisi par le client</dt>
-              <dd>{c.type_client}</dd>
-            </div>
-          )}
           {c.couleur && (
             <div>
               <dt class="etiquette">Couleur souhaitée</dt>
@@ -204,11 +208,6 @@ const texteClient = c.nature === 'texte' || Boolean(c.texte_attendu)
             </div>
           )}
         </dl>
-        {c.selecteur && (
-          <p class="text-xs text-muted">
-            Sélecteur : <span class="font-mono break-all">{c.selecteur}</span>
-          </p>
-        )}
       </section>
 
       <section class="carte">
@@ -231,48 +230,47 @@ const texteClient = c.nature === 'texte' || Boolean(c.texte_attendu)
             <select class="champ" name="gravite">
               <option value="">·</option>
               {GRAVITES.map((g) => (
-                <option value={g} selected={c.gravite === g}>
+                <option value={g} selected={gravite === g}>
                   {GRAVITE_LABELS[g]}
                 </option>
               ))}
             </select>
           </label>
-          <label class="sm:col-span-2">
-            <span class="etiquette">Constat</span>
-            <textarea class="champ" name="constat" rows="2">{c.constat ?? ''}</textarea>
+          <label>
+            <span class="etiquette">Lieu de correction</span>
+            <select class="champ" name="lieu_correction">
+              <option value="">·</option>
+              {LIEUX.map((l) => (
+                <option value={l} selected={lieu === l}>
+                  {LIEU_LABELS[l]}
+                </option>
+              ))}
+            </select>
           </label>
-          <label class="sm:col-span-2">
-            <span class="etiquette">Attendu</span>
-            <textarea class="champ" name="attendu" rows="2">{c.attendu ?? ''}</textarea>
+          <label>
+            <span class="etiquette">Lot</span>
+            <input class="champ" name="lot" value={c.lot ?? defauts.lot ?? ''} />
           </label>
+          {!texteClient && (
+            <>
+              <label class="sm:col-span-2">
+                <span class="etiquette">Constat</span>
+                <textarea class="champ" name="constat" rows="2">{c.constat ?? ''}</textarea>
+              </label>
+              <label class="sm:col-span-2">
+                <span class="etiquette">Attendu</span>
+                <textarea class="champ" name="attendu" rows="2">{c.attendu ?? ''}</textarea>
+              </label>
+            </>
+          )}
           <label class="sm:col-span-2">
             <span class="etiquette">Note de l'agence</span>
             <textarea class="champ" name="note" rows="2">{c.note ?? ''}</textarea>
           </label>
 
           <details class="rounded-md border border-line p-3 sm:col-span-2" open={detailsOuverts}>
-            <summary class="cursor-pointer text-sm font-semibold">Détails pour l'agent</summary>
+            <summary class="cursor-pointer text-sm font-semibold">Plus de champs</summary>
             <div class="mt-4 grid gap-4 sm:grid-cols-2">
-              <label>
-                <span class="etiquette">Lieu de correction</span>
-                <select class="champ" name="lieu_correction">
-                  <option value="">·</option>
-                  {LIEUX.map((l) => (
-                    <option value={l} selected={c.lieu_correction === l}>
-                      {LIEU_LABELS[l]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span class="etiquette">Lot</span>
-                <input
-                  class="champ"
-                  name="lot"
-                  value={c.lot ?? ''}
-                  placeholder="recette-2026-09-26"
-                />
-              </label>
               <label>
                 <span class="etiquette">Page</span>
                 <input class="champ font-mono" name="page" value={c.page} />
@@ -376,30 +374,6 @@ const texteClient = c.nature === 'texte' || Boolean(c.texte_attendu)
             ></textarea>
             <button class="bouton w-full">Appliquer</button>
           </form>
-          {passages.includes('refusee') && (
-            <form method="post" class="mt-4 space-y-2 border-t border-line pt-4">
-              <input type="hidden" name="_action" value="statut" />
-              <input type="hidden" name="revision" value={revision} />
-              <input type="hidden" name="statut" value="refusee" />
-              <label class="block">
-                <span class="etiquette">Raccourci : refuser (raison)</span>
-                <input
-                  class="champ"
-                  name="historique_note"
-                  list="raisons-refus"
-                  required
-                  maxlength="500"
-                  placeholder="Essai de l'agence…"
-                />
-              </label>
-              <datalist id="raisons-refus">
-                {RAISONS_REFUS.map((r) => (
-                  <option value={r} />
-                ))}
-              </datalist>
-              <button class="bouton w-full border-danger text-danger">Refuser</button>
-            </form>
-          )}
         </section>
       )}
 
@@ -480,38 +454,48 @@ const texteClient = c.nature === 'texte' || Boolean(c.texte_attendu)
         </ol>
       </section>
 
-      {c.contexte && (
+      {(c.contexte || c.selecteur) && (
         <details class="carte text-sm">
           <summary class="cursor-pointer font-bold">Contexte technique</summary>
           <dl class="mt-3 space-y-2">
-            <div>
-              <dt class="etiquette">Fenêtre</dt>
-              <dd>
-                {c.contexte.viewport.width} × {c.contexte.viewport.height} px
-              </dd>
-            </div>
-            <div>
-              <dt class="etiquette">Écran</dt>
-              <dd>
-                {c.contexte.screen.width} × {c.contexte.screen.height} px, densité{' '}
-                {c.contexte.pixelRatio}
-              </dd>
-            </div>
-            <div>
-              <dt class="etiquette">Tactile</dt>
-              <dd>{c.contexte.touch ? 'oui' : 'non'}</dd>
-            </div>
-            {c.contexte.language && (
+            {c.selecteur && (
               <div>
-                <dt class="etiquette">Langue</dt>
-                <dd>{c.contexte.language}</dd>
+                <dt class="etiquette">Élément visé (sélecteur)</dt>
+                <dd class="font-mono text-xs break-all">{c.selecteur}</dd>
               </div>
             )}
-            <div>
-              <dt class="etiquette">Navigateur (brut)</dt>
-              <dd class="font-mono text-xs break-all">{c.contexte.userAgent}</dd>
-            </div>
           </dl>
+          {c.contexte && (
+            <dl class="mt-3 space-y-2">
+              <div>
+                <dt class="etiquette">Fenêtre</dt>
+                <dd>
+                  {c.contexte.viewport.width} × {c.contexte.viewport.height} px
+                </dd>
+              </div>
+              <div>
+                <dt class="etiquette">Écran</dt>
+                <dd>
+                  {c.contexte.screen.width} × {c.contexte.screen.height} px, densité{' '}
+                  {c.contexte.pixelRatio}
+                </dd>
+              </div>
+              <div>
+                <dt class="etiquette">Tactile</dt>
+                <dd>{c.contexte.touch ? 'oui' : 'non'}</dd>
+              </div>
+              {c.contexte.language && (
+                <div>
+                  <dt class="etiquette">Langue</dt>
+                  <dd>{c.contexte.language}</dd>
+                </div>
+              )}
+              <div>
+                <dt class="etiquette">Navigateur (brut)</dt>
+                <dd class="font-mono text-xs break-all">{c.contexte.userAgent}</dd>
+              </div>
+            </dl>
+          )}
         </details>
       )}
     </aside>

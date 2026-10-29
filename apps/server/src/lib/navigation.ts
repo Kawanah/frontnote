@@ -70,6 +70,10 @@ export function requeteFiltre(params: URLSearchParams): string {
 export const avecParam = (requete: string, param: string) =>
   `${requete}${requete ? '&' : '?'}${param}`
 
+// Liste du projet avec son filtre et, si besoin, un paramètre de plus (ex. fait=…)
+export const lienListe = (projetId: string, requete: string, param?: string) =>
+  `/projets/${projetId}${param ? avecParam(requete, param) : requete}`
+
 // Demandes voisines dans l'ordre de la liste ; absente de la liste : aucune
 export function voisines(
   ids: readonly string[],
