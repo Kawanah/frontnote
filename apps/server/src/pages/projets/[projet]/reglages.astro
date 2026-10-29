@@ -285,7 +285,7 @@ connect-src … ${origine}`
           </div>
           <form
             method="post"
-            onsubmit="return confirm('Les liens déjà envoyés cesseront de fonctionner. Continuer ?')"
+            data-confirmer="Les liens déjà envoyés cesseront de fonctionner. Continuer ?"
           >
             <input type="hidden" name="_action" value="cle" />
             <button class="text-xs text-muted underline">
@@ -384,6 +384,13 @@ connect-src … ${origine}`
 </Layout>
 
 <script>
+  // Confirmation avant une action irréversible (pas de onsubmit : bloqué par la CSP)
+  document.querySelectorAll<HTMLFormElement>('form[data-confirmer]').forEach((form) => {
+    form.addEventListener('submit', (e) => {
+      if (!confirm(form.dataset.confirmer ?? '')) e.preventDefault()
+    })
+  })
+
   // Boutons « Copier » : copient le texte de l'élément ciblé
   document.querySelectorAll<HTMLButtonElement>('[data-copier]').forEach((bouton) => {
     bouton.addEventListener('click', async () => {
