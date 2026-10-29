@@ -2,7 +2,7 @@
 import Badge from '../../../components/Badge.astro'
 import NavigationFiche from '../../../components/NavigationFiche.astro'
 import Layout from '../../../layouts/Layout.astro'
-import { dateCourte, dateHeure, TON_GRAVITE, TON_STATUT } from '../../../lib/affichage'
+import { dateCourte, dateHeure, lienVoir, TON_GRAVITE, TON_STATUT } from '../../../lib/affichage'
 import {
   getCorrection,
   listCorrections,
@@ -95,9 +95,7 @@ if (Astro.request.method === 'POST') {
 const c = correction
 const revision = getProjet(db, projet.id)!.revision
 const passages = transitionsPossibles('agence', c.statut)
-const lienPage = c.url
-  ? `${c.url}${c.url.includes('?') ? '&' : '?'}frontnote=${projet.cle_activation}`
-  : null
+const lienPage = lienVoir(c, projet.cle_activation)
 const t = c.traitement
 // Un seul bouton d'enregistrement : il fait aussi passer une nouvelle demande « À traiter »
 const versTraiter = c.statut === 'nouvelle' && passages.includes('a_traiter')

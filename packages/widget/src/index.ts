@@ -1,6 +1,7 @@
 import {
   adresseSansActivation,
   forgetActivation,
+  lireRepere,
   rememberActivation,
   resolveActivation,
 } from './activation'
@@ -26,6 +27,7 @@ export function initFrontNote({ projectId, apiUrl }: FrontNoteOptions): void {
   // Lus avant de nettoyer l'adresse : la clé et le carnet n'y restent pas
   const search = window.location.search
   const carnetLien = new URLSearchParams(search).get('carnet')
+  const repere = lireRepere(window.location.hash)
   const propre = adresseSansActivation(window.location.href)
   if (propre) {
     try {
@@ -68,6 +70,7 @@ export function initFrontNote({ projectId, apiUrl }: FrontNoteOptions): void {
       envoyer: (brouillons) => postLot(apiUrl, { projet: projectId, cle, notes: brouillons }),
       sauvegarde: sync,
       lienReprise,
+      repere: repere ?? undefined,
     })
 
   // Clé vérifiée par le serveur. Refusée (mauvaise clé, projet clos ou inconnu) :

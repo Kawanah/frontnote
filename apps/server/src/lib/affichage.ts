@@ -34,3 +34,29 @@ const HEURE = new Intl.DateTimeFormat('fr-FR', {
 
 export const dateCourte = (iso: string) => JOUR.format(new Date(`${iso.slice(0, 10)}T12:00:00`))
 export const dateHeure = (iso: string) => HEURE.format(new Date(iso))
+
+// Lien « Voir sur la page » : active le widget avec la clé du projet et lui passe,
+// dans le fragment (jamais envoyé au serveur du site), le retour à montrer
+export function lienVoir(
+  c: {
+    id: string
+    url: string | null
+    selecteur: string | null
+    x: number | null
+    y: number | null
+  },
+  cle: string | null
+): string | null {
+  if (!c.url || !cle) return null
+  let url: URL
+  try {
+    url = new URL(c.url)
+  } catch {
+    return null
+  }
+  url.searchParams.set('frontnote', cle)
+  url.hash = ''
+  if (!c.selecteur || c.x == null || c.y == null) return url.toString()
+  const repere = new URLSearchParams({ id: c.id, x: String(c.x), y: String(c.y), s: c.selecteur })
+  return `${url.toString()}#frontnote-voir&${repere}`
+}

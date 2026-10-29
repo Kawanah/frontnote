@@ -1,3 +1,4 @@
+import type { Repere } from './activation'
 import { pageUrl } from './api'
 import { collectContext } from './context'
 import { createForm, focusForm } from './form'
@@ -32,6 +33,8 @@ export interface OverlayOptions {
   }
   /** Lien qui rouvre ce carnet sur un autre appareil */
   lienReprise?: () => string | null
+  /** Retour à montrer (lien « Voir sur la page » du dashboard) */
+  repere?: Repere
 }
 
 // Pin d'une note du carnet présente sur cette page
@@ -70,6 +73,7 @@ export function mountOverlay({
   envoyer,
   sauvegarde,
   lienReprise = () => null,
+  repere,
 }: OverlayOptions): () => void {
   const listeners = new AbortController()
   const { signal } = listeners
@@ -79,6 +83,7 @@ export function mountOverlay({
     <style>${STYLES}</style>
     <div class="root">
       <div class="highlight" hidden></div>
+      <div class="repere-cadre" hidden></div>
       <div class="pins"></div>
       <div class="toast" role="status" aria-live="polite" hidden></div>
       <div class="bar">
@@ -104,6 +109,7 @@ export function mountOverlay({
   const toolbarLabel = toolbar.querySelector('span') as HTMLElement
   const mine = shadow.querySelector('.mine') as HTMLButtonElement
   const badge = shadow.querySelector('.badge') as HTMLElement
+  const repereCadre = shadow.querySelector('.repere-cadre') as HTMLElement
 
   let picking = false
   let hovered: Element | null = null
@@ -113,6 +119,10 @@ export function mountOverlay({
   let href = window.location.href
   let frame = 0
   let toastTimer = 0
+  // Retour montré : seulement sur la page ouverte par le lien du dashboard
+  const pageRepere = repere ? pageUrl(window.location.href) : ''
+  let repereVu: { element: Element; node: HTMLElement } | null = null
+  let repereSignale = false
 
   const pageCourante = () => pageUrl(window.location.href)
   const isOurs = (event: Event) => event.composedPath().includes(host)
@@ -156,6 +166,19 @@ export function mountOverlay({
   function render() {
     frame = 0
     for (const pin of pins) placeNode(pin.node, pin.element, pin.note)
+    if (repere && repereVu) {
+      placeNode(repereVu.node, repereVu.element, repere)
+      const rect = repereVu.element.getBoundingClientRect()
+      Object.assign(repereCadre.style, {
+        left: `${rect.left}px`,
+        top: `${rect.top}px`,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`,
+      })
+      repereCadre.hidden = repereVu.node.hidden
+    } else {
+      repereCadre.hidden = true
+    }
     if (creation) {
       placeNode(creation.node, creation.element, creation.position)
       placePanel(creation)
@@ -226,7 +249,32 @@ export function mountOverlay({
     }
     carnet.envoyes.forEach((note) => placer(note, true))
     carnet.brouillons.forEach((note) => placer(note, false))
+    placerRepere(page)
     scheduleRender()
+  }
+
+  // Retour montré par le dashboard : élément entouré, étiquette à l'endroit cliqué
+  function placerRepere(page: string) {
+    repereVu = null
+    if (!repere || !memePage(pageRepere, page)) return
+    const element = trouver(repere.selecteur)
+    if (!element) {
+      if (!repereSignale) {
+        repereSignale = true
+        showToast(`${repere.id} : élément introuvable, la page a peut-être changé.`)
+      }
+      return
+    }
+    const node = document.createElement('div')
+    node.className = 'pin repere'
+    node.dataset.id = repere.id
+    node.title = `Retour ${repere.id}`
+    pinsLayer.append(node)
+    repereVu = { element, node }
+    if (!repereSignale) {
+      repereSignale = true
+      element.scrollIntoView?.({ block: 'center' })
+    }
   }
 
   function refresh(recent?: string) {
@@ -393,10 +441,17 @@ export function mountOverlay({
       href = window.location.href
       closeCreation()
       refresh()
-    } else if (introuvables.size && [...introuvables].some(retrouvable)) {
+    } else if ((introuvables.size && [...introuvables].some(retrouvable)) || repereRetrouvable()) {
       refresh()
     }
   }
+
+  // Élément du repère affiché après coup (contenu chargé plus tard)
+  const repereRetrouvable = () =>
+    !!repere &&
+    !repereVu &&
+    memePage(pageRepere, pageCourante()) &&
+    trouver(repere.selecteur) !== null
 
   function retrouvable(idLocal: string) {
     const note = notes.lire().brouillons.find((n) => n.idLocal === idLocal)

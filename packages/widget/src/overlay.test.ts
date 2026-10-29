@@ -309,3 +309,29 @@ it('se retire proprement', () => {
   expect(document.querySelector('frontnote-root')).toBeNull()
   expect(document.documentElement.classList.contains('frontnote-picking')).toBe(false)
 })
+
+describe('retour montré par le dashboard', () => {
+  const repere = { id: 'MON-001', selecteur: '#lien', x: 0.3, y: 0.5 }
+
+  it('entoure l’élément et pose l’identifiant', () => {
+    destroy = mountOverlay({ notes: carnet(), envoyer: vi.fn(), repere })
+    const pin = $<HTMLElement>('.pin.repere')
+    expect(pin.dataset.id).toBe('MON-001')
+    expect($$('.pin.repere')).toHaveLength(1)
+  })
+
+  it('prévient si l’élément n’existe plus', () => {
+    destroy = mountOverlay({
+      notes: carnet(),
+      envoyer: vi.fn(),
+      repere: { ...repere, selecteur: '#disparu' },
+    })
+    expect($$('.pin.repere')).toHaveLength(0)
+    expect($('.toast').textContent).toContain('MON-001')
+  })
+
+  it('rien sans repère', () => {
+    mount()
+    expect($$('.pin.repere')).toHaveLength(0)
+  })
+})
