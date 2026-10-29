@@ -156,6 +156,47 @@ button.pin {
   animation: fn-pulse 0.7s ease-out 3;
 }
 
+/* Retour montré depuis le dashboard : élément entouré, identifiant à l'endroit cliqué */
+.repere-cadre {
+  position: fixed;
+  border: 3px solid var(--fn-accent);
+  border-radius: 4px;
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.25);
+  pointer-events: none;
+  /* Le voile s'efface : la page reste lisible autour */
+  animation: fn-voile 0.6s ease-out 3s forwards;
+}
+
+@keyframes fn-voile {
+  to {
+    box-shadow: 0 0 0 9999px rgb(0 0 0 / 0);
+  }
+}
+
+/* Point à l'endroit cliqué, identifiant au-dessus : le texte visé reste visible */
+.pin.repere {
+  width: 14px;
+  height: 14px;
+  background: var(--fn-accent);
+  font-size: 0;
+  animation: fn-pulse 0.7s ease-out 3;
+}
+
+.pin.repere::after {
+  content: attr(data-id);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--fn-accent);
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.3);
+}
+
 @keyframes fn-pulse {
   from {
     box-shadow: 0 0 0 0 rgb(232 89 12 / 0.5);
@@ -627,8 +668,14 @@ details[data-envoyes] .cards {
 @media (prefers-reduced-motion: reduce) {
   .pin.draft,
   .pin.flash,
+  .pin.repere,
   .card.recent {
     animation: none;
+  }
+
+  .repere-cadre {
+    animation: none;
+    box-shadow: none;
   }
 }
 `

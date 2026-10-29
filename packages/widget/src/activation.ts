@@ -37,12 +37,39 @@ export function rememberActivation(projectId: string, key: string, storage: Stor
   storage.setItem(storageKey(projectId), key)
 }
 
-// Adresse sans la clé ni le carnet (secrets), ou null s'il n'y a rien à retirer.
-// Laissés dans la barre d'adresse, ils partiraient dans les outils de mesure du
-// site, les captures d'écran et les liens copiés.
+// Retour à montrer, transmis par le lien « Voir sur la page » du dashboard dans le
+// fragment (#frontnote-voir&id=…&x=…&y=…&s=<sélecteur>) : jamais envoyé au serveur
+// du site, et rien n'est relu sur le serveur FrontNote.
+const VOIR = '#frontnote-voir&'
+
+export interface Repere {
+  id: string
+  selecteur: string
+  x: number
+  y: number
+}
+
+export function lireRepere(hash: string): Repere | null {
+  if (!hash.startsWith(VOIR)) return null
+  const params = new URLSearchParams(hash.slice(VOIR.length))
+  const id = params.get('id')
+  const selecteur = params.get('s')
+  const x = Number(params.get('x'))
+  const y = Number(params.get('y'))
+  if (!id || !selecteur || !Number.isFinite(x) || !Number.isFinite(y)) return null
+  const dans = (n: number) => Math.min(Math.max(n, 0), 1)
+  return { id: id.slice(0, 30), selecteur: selecteur.slice(0, 500), x: dans(x), y: dans(y) }
+}
+
+// Adresse sans la clé ni le carnet (secrets) ni le repère, ou null s'il n'y a rien
+// à retirer. Laissés dans la barre d'adresse, ils partiraient dans les outils de
+// mesure du site, les captures d'écran et les liens copiés.
 export function adresseSansActivation(href: string): string | null {
-  const { searchParams } = new URL(href)
-  return searchParams.has(PARAM) || searchParams.has(CARNET) ? pageUrl(href) : null
+  const url = new URL(href)
+  const repere = url.hash.startsWith(VOIR)
+  if (!repere && !url.searchParams.has(PARAM) && !url.searchParams.has(CARNET)) return null
+  if (repere) url.hash = ''
+  return pageUrl(url.toString())
 }
 
 // Projet clos ou clé refusée : le lien mémorisé ne réactive plus le widget
