@@ -6,7 +6,15 @@ import {
   enregistrerCarnet,
   lireCarnet,
 } from '../../../lib/carnets'
-import { clientIp, erreur, invalide, json, preflight, readJson } from '../../../lib/http'
+import {
+  clientIp,
+  erreur,
+  invalide,
+  json,
+  preflight,
+  readJson,
+  tropDeRequetes,
+} from '../../../lib/http'
 import { limiteCarnets } from '../../../lib/limites'
 import { getDb } from '../../../lib/runtime'
 
@@ -15,11 +23,9 @@ export const OPTIONS: APIRoute = () => preflight()
 // Brouillons et envoyés d'un carnet : 1 000 retours complets au plus
 const MAX_CARNET_CHARS = 2_000_000
 
-const trop = () => json({ error: 'Trop de requêtes, réessayez plus tard' }, 429)
-
 // Public (widget) : GET /api/carnets/:id?projet=&cle= → { carnet }
 export const GET: APIRoute = ({ params, url, request, clientAddress }) => {
-  if (!limiteCarnets(clientIp(request, clientAddress))) return trop()
+  if (!limiteCarnets(clientIp(request, clientAddress))) return tropDeRequetes()
   const id = carnetIdSchema.safeParse(params.id)
   const acces = accesCarnetSchema.safeParse({
     projet: url.searchParams.get('projet'),
@@ -36,7 +42,7 @@ export const GET: APIRoute = ({ params, url, request, clientAddress }) => {
 
 // Public (widget) : PUT /api/carnets/:id { projet, cle, carnet } — remplace le carnet
 export const PUT: APIRoute = async ({ params, request, clientAddress }) => {
-  if (!limiteCarnets(clientIp(request, clientAddress))) return trop()
+  if (!limiteCarnets(clientIp(request, clientAddress))) return tropDeRequetes()
   const id = carnetIdSchema.safeParse(params.id)
   if (!id.success) return invalide(id.error.issues)
   const parsed = ecritureCarnetSchema.safeParse(await readJson(request, MAX_CARNET_CHARS))

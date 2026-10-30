@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { nouvelleCle } from './auth'
 import { maintenant } from './dates'
-import type { Db } from './db'
+import { transaction, type Db } from './db'
 import { DomainError } from './errors'
 import { NATURES, NATURES_COMMUNES, STATUTS_FERMES, type Nature } from './vocabulaire'
 
@@ -143,4 +143,24 @@ export function nextId(db: Db, id: string): string {
     .prepare('UPDATE projets SET compteur = compteur + 1 WHERE id = ? RETURNING compteur, prefixe')
     .get(id) as { compteur: number; prefixe: string }
   return `${row.prefixe}${String(row.compteur).padStart(3, '0')}`
+}
+
+// Fin de projet : supprime corrections et historique, retire le jeton agent, refuse le
+// widget. Le projet reste : préfixe et compteur ne servent jamais deux fois (§ 7.4).
+export function clore(db: Db, projetId: string): number {
+  return transaction(db, () => {
+    if (!getProjet(db, projetId)) throw new DomainError(404, `Projet inconnu : « ${projetId} »`)
+    db.prepare(
+      'DELETE FROM historique WHERE correction_id IN (SELECT id FROM corrections WHERE projet = ?)'
+    ).run(projetId)
+    const { changes } = db.prepare('DELETE FROM corrections WHERE projet = ?').run(projetId)
+    // Brouillons des clients : le widget disparaît, ils n'ont plus d'usage
+    db.prepare('DELETE FROM carnets WHERE projet = ?').run(projetId)
+    db.prepare('UPDATE projets SET clos_le = ?, jeton_agent = NULL WHERE id = ?').run(
+      maintenant(),
+      projetId
+    )
+    bumpRevision(db, projetId)
+    return Number(changes)
+  })
 }

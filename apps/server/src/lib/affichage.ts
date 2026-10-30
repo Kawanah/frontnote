@@ -1,5 +1,12 @@
 import type { Gravite, Statut } from './vocabulaire'
 
+// Ligne de ListeInfos : valeur vide → ligne omise ; code → police mono
+export interface Info {
+  libelle: string
+  valeur: string | number | null | undefined
+  code?: boolean
+}
+
 export type Ton = 'accent' | 'info' | 'warn' | 'ok' | 'ok-plein' | 'danger' | 'neutre'
 
 export const TON_STATUT: Record<Statut, Ton> = {

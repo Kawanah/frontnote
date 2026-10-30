@@ -1,4 +1,7 @@
 ---
+import BoutonCopier from '../../../components/BoutonCopier.astro'
+import Message from '../../../components/Message.astro'
+import Champ from '../../../components/Champ.astro'
 import Badge from '../../../components/Badge.astro'
 import Layout from '../../../layouts/Layout.astro'
 import { dateCourte, TON_STATUT } from '../../../lib/affichage'
@@ -123,9 +126,7 @@ const enCours = compte(ONGLETS[1].statuts)
     <h1 class="text-2xl font-bold tracking-tight">{projet.nom}</h1>
     <div class="flex flex-wrap items-center gap-2">
       {projet.jeton_agent ? (
-        <button type="button" class="bouton-principal" data-copier="#pour-agent">
-          Copier pour l'agent
-        </button>
+        <BoutonCopier cible="#pour-agent" libelle="Copier pour l'agent" class="bouton-principal" />
       ) : (
         <a href={`/projets/${projet.id}/reglages`} class="text-sm text-accent underline">
           Jeton agent à créer
@@ -151,26 +152,26 @@ const enCours = compte(ONGLETS[1].statuts)
   )}
 
   {fait && (
-    <p class="mb-4 rounded-md bg-ok-soft px-4 py-2 text-sm text-ok" role="status">
+    <Message class="mb-4">
       <span class="font-mono">{fait}</span> est passée « À traiter ». C'était la dernière de la
       liste.
-    </p>
+    </Message>
   )}
   {traitees.length > 0 && (
-    <p class="mb-4 rounded-md bg-ok-soft px-4 py-2 text-sm text-ok" role="status">
+    <Message class="mb-4">
       {traitees.length > 1 ? `${traitees.length} demandes passées` : `${traitees[0]} passée`} « À
       traiter » : l'agent peut les prendre.
-    </p>
+    </Message>
   )}
   {maj && (
-    <p class="mb-4 rounded-md bg-ok-soft px-4 py-2 text-sm text-ok" role="status">
+    <Message class="mb-4">
       <span class="font-mono">{maj.id}</span> : {STATUT_LABELS[maj.statut]}.
-    </p>
+    </Message>
   )}
   {erreurListe && (
-    <p class="mb-4 rounded-md bg-danger-soft px-4 py-2 text-sm text-danger" role="alert">
+    <Message ton="erreur" class="mb-4">
       {erreurListe}
-    </p>
+    </Message>
   )}
 
   <nav class="mb-4 flex flex-wrap gap-1 border-b border-line" aria-label="Demandes">
@@ -351,8 +352,7 @@ const enCours = compte(ONGLETS[1].statuts)
                             <input type="hidden" name="id" value={c.id} />
                             <input type="hidden" name="revision" value={projet.revision} />
                             <input type="hidden" name="statut" value="refusee" />
-                            <label class="block">
-                              <span class="etiquette">Raison du refus</span>
+                            <Champ etiquette="Raison du refus">
                               <input
                                 class="champ"
                                 name="historique_note"
@@ -361,10 +361,8 @@ const enCours = compte(ONGLETS[1].statuts)
                                 maxlength="500"
                                 placeholder="Essai de l'agence…"
                               />
-                            </label>
-                            <button class="bouton w-full border-danger text-danger">
-                              Refuser {c.id}
-                            </button>
+                            </Champ>
+                            <button class="bouton bouton-danger w-full">Refuser {c.id}</button>
                           </form>
                         </details>
                       )}
@@ -390,16 +388,4 @@ const enCours = compte(ONGLETS[1].statuts)
         .querySelectorAll<HTMLInputElement>('input[name="selection"]')
         .forEach((c) => (c.checked = coche))
     })
-
-  // Boutons « Copier » : copient le texte de l'élément ciblé
-  document.querySelectorAll<HTMLButtonElement>('[data-copier]').forEach((bouton) => {
-    bouton.addEventListener('click', async () => {
-      const cible = document.querySelector(bouton.dataset.copier ?? '')
-      if (!cible?.textContent) return
-      await navigator.clipboard.writeText(cible.textContent.trim())
-      const libelle = bouton.textContent
-      bouton.textContent = 'Copié'
-      setTimeout(() => (bouton.textContent = libelle), 1500)
-    })
-  })
 </script>

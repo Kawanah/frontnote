@@ -1,11 +1,11 @@
 import type { APIRoute } from 'astro'
+import { versContrat } from '../../../lib/exportAgent'
 import { roleFor } from '../../../lib/auth'
 import {
   getCorrection,
   mettreAJour,
   miseAJourAgenceSchema,
   miseAJourAgentSchema,
-  versContrat,
 } from '../../../lib/corrections'
 import { erreur, invalide, json, preflight, readJson } from '../../../lib/http'
 import { getProjet } from '../../../lib/projets'

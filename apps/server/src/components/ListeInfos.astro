@@ -1,0 +1,20 @@
+---
+import type { Info } from '../lib/affichage'
+
+// Liste d'informations « libellé : valeur ». Les valeurs vides sont omises.
+// code : valeur technique (branche, sélecteur…), en police mono, coupée si longue.
+interface Props {
+  infos: Info[]
+}
+
+const remplies = Astro.props.infos.filter(({ valeur }) => valeur != null && valeur !== '')
+---
+
+<dl class="space-y-3">
+  {remplies.map(({ libelle, valeur, code }) => (
+    <div>
+      <dt class="etiquette">{libelle}</dt>
+      <dd class:list={[code && 'font-mono text-xs break-all']}>{valeur}</dd>
+    </div>
+  ))}
+</dl>

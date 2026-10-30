@@ -1,9 +1,12 @@
 ---
+import BlocCopiable from '../../../components/BlocCopiable.astro'
+import Champ from '../../../components/Champ.astro'
 import Layout from '../../../layouts/Layout.astro'
+import { exporterProjet } from '../../../lib/exportAgent'
 import { dateCourte } from '../../../lib/affichage'
 import { nouveauJeton } from '../../../lib/auth'
-import { clore, exporterProjet } from '../../../lib/corrections'
 import {
+  clore,
   getProjet,
   regenererCle,
   rouvrirProjet,
@@ -138,13 +141,7 @@ connect-src … ${origine}`
         <summary class="cursor-pointer font-semibold">
           Consigne pour l'agent : retirer le widget du site
         </summary>
-        <pre
-          id="retrait"
-          class="mt-2 overflow-x-auto rounded-md bg-surface p-3 font-mono text-xs whitespace-pre-wrap"
-        >{retrait}</pre>
-        <button type="button" class="bouton mt-2" data-copier="#retrait">
-          Copier la consigne
-        </button>
+        <BlocCopiable id="retrait" texte={retrait} libelle="Copier la consigne" class="mt-2" />
       </details>
     </div>
   )}
@@ -174,17 +171,7 @@ connect-src … ${origine}`
             Jeton agent : copiez-le maintenant, il ne sera plus affiché.
           </p>
           <p class="mt-1 text-muted">À mettre dans le .env du site : FRONTNOTE_TOKEN=…</p>
-          <div class="mt-2 flex gap-2">
-            <code
-              id="jeton"
-              class="min-w-0 flex-1 truncate rounded bg-surface px-2 py-1 font-mono text-xs"
-            >
-              {jetonAffiche}
-            </code>
-            <button type="button" class="bouton" data-copier="#jeton">
-              Copier
-            </button>
-          </div>
+          <BlocCopiable id="jeton" texte={jetonAffiche} variante="ligne" class="mt-2" />
         </div>
       ) : (
         <form method="post" class="flex flex-wrap items-center justify-between gap-3">
@@ -206,13 +193,7 @@ connect-src … ${origine}`
         <summary class="cursor-pointer text-sm font-semibold">
           Consigne pour le CLAUDE.md du site
         </summary>
-        <pre
-          id="consigne"
-          class="mt-2 overflow-x-auto rounded-md bg-paper p-3 font-mono text-xs whitespace-pre-wrap"
-        >{consigne}</pre>
-        <button type="button" class="bouton mt-2" data-copier="#consigne">
-          Copier la consigne
-        </button>
+        <BlocCopiable id="consigne" texte={consigne} libelle="Copier la consigne" class="mt-2" />
       </details>
 
       <details>
@@ -222,13 +203,7 @@ connect-src … ${origine}`
         <p class="mt-2 text-xs text-muted">
           Corrections « À traiter », à coller dans Claude Code si l'agent n'a pas de jeton.
         </p>
-        <pre
-          id="export"
-          class="mt-2 max-h-72 overflow-auto rounded-md bg-paper p-3 font-mono text-xs"
-        >{exportAgent}</pre>
-        <button type="button" class="bouton mt-2" data-copier="#export">
-          Copier le JSON
-        </button>
+        <BlocCopiable id="export" texte={exportAgent} libelle="Copier le JSON" long class="mt-2" />
       </details>
     </div>
 
@@ -239,13 +214,7 @@ connect-src … ${origine}`
           Une ligne avant la fermeture de &lt;/body&gt;, puis envoyer au client le lien d'accès
           ci-dessous.
         </p>
-        <pre
-          id="script"
-          class="overflow-x-auto rounded-md bg-paper p-3 font-mono text-xs whitespace-pre-wrap"
-        >{script}</pre>
-        <button type="button" class="bouton" data-copier="#script">
-          Copier
-        </button>
+        <BlocCopiable id="script" texte={script} />
         <p class="text-xs text-muted">
           Site Astro : ajouter <span class="font-mono">is:inline</span> dans la balise.
         </p>
@@ -258,13 +227,13 @@ connect-src … ${origine}`
             balise, la CSP et la section à ajouter au CLAUDE.md. Le jeton agent, vous l'ajoutez
             vous-même au .env du site.
           </p>
-          <pre
+          <BlocCopiable
             id="installation"
-            class="mt-2 max-h-72 overflow-auto rounded-md bg-paper p-3 font-mono text-xs whitespace-pre-wrap"
-          >{installation}</pre>
-          <button type="button" class="bouton mt-2" data-copier="#installation">
-            Copier la consigne
-          </button>
+            texte={installation}
+            libelle="Copier la consigne"
+            long
+            class="mt-2"
+          />
         </details>
         <div class="space-y-2 rounded-md border border-line p-3 text-sm">
           <p class="font-semibold">Lien d'accès pour le client</p>
@@ -272,17 +241,11 @@ connect-src … ${origine}`
             À ajouter à l'adresse de n'importe quelle page du site. Sans cette clé, le widget reste
             invisible et le serveur refuse les retours.
           </p>
-          <div class="flex gap-2">
-            <code
-              id="lien-acces"
-              class="min-w-0 flex-1 truncate rounded bg-paper px-2 py-1 font-mono text-xs"
-            >
-              ?frontnote={projet.cle_activation}
-            </code>
-            <button type="button" class="bouton" data-copier="#lien-acces">
-              Copier
-            </button>
-          </div>
+          <BlocCopiable
+            id="lien-acces"
+            texte={`?frontnote=${projet.cle_activation}`}
+            variante="ligne"
+          />
           <form
             method="post"
             data-confirmer="Les liens déjà envoyés cesseront de fonctionner. Continuer ?"
@@ -300,13 +263,7 @@ connect-src … ${origine}`
             message visible. Vérifier aussi que la CSP s'applique vraiment aux pages pré-générées
             (en-têtes de la page en ligne).
           </p>
-          <pre
-            id="csp"
-            class="mt-2 overflow-x-auto rounded bg-surface p-2 font-mono text-xs"
-          >{csp}</pre>
-          <button type="button" class="bouton mt-2" data-copier="#csp">
-            Copier
-          </button>
+          <BlocCopiable id="csp" texte={csp} class="mt-2" />
         </div>
       </div>
 
@@ -314,10 +271,9 @@ connect-src … ${origine}`
         <summary class="cursor-pointer font-bold">Réglages du projet</summary>
         <form method="post" class="mt-4 space-y-4">
           <input type="hidden" name="_action" value="reglages" />
-          <label class="block">
-            <span class="etiquette">Nom</span>
+          <Champ etiquette="Nom">
             <input class="champ" name="nom" value={projet.nom} required maxlength="100" />
-          </label>
+          </Champ>
           <fieldset>
             <legend class="etiquette">Natures actives (fiche projet, § 10)</legend>
             <div class="grid grid-cols-2 gap-2 text-sm">
@@ -372,9 +328,7 @@ connect-src … ${origine}`
                   {erreurCloture}
                 </p>
               )}
-              <button class="bouton border-danger text-danger">
-                Clore et supprimer les corrections
-              </button>
+              <button class="bouton bouton-danger">Clore et supprimer les corrections</button>
             </form>
           </div>
         </details>
@@ -388,18 +342,6 @@ connect-src … ${origine}`
   document.querySelectorAll<HTMLFormElement>('form[data-confirmer]').forEach((form) => {
     form.addEventListener('submit', (e) => {
       if (!confirm(form.dataset.confirmer ?? '')) e.preventDefault()
-    })
-  })
-
-  // Boutons « Copier » : copient le texte de l'élément ciblé
-  document.querySelectorAll<HTMLButtonElement>('[data-copier]').forEach((bouton) => {
-    bouton.addEventListener('click', async () => {
-      const cible = document.querySelector(bouton.dataset.copier ?? '')
-      if (!cible?.textContent) return
-      await navigator.clipboard.writeText(cible.textContent.trim())
-      const libelle = bouton.textContent
-      bouton.textContent = 'Copié'
-      setTimeout(() => (bouton.textContent = libelle), 1500)
     })
   })
 </script>

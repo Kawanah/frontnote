@@ -14,6 +14,9 @@ export const MAX_BODY_CHARS = 20_000
 export const json = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: CORS_HEADERS })
 
+// Limite de débit atteinte (429)
+export const tropDeRequetes = () => json({ error: 'Trop de requêtes, réessayez plus tard' }, 429)
+
 export const preflight = () => new Response(null, { status: 204, headers: CORS_HEADERS })
 
 // Corps JSON, ou undefined si absent, trop gros ou mal formé

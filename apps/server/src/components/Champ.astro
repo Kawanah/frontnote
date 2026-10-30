@@ -1,0 +1,14 @@
+---
+// Champ de formulaire : étiquette + contrôle (input, select, textarea) passé en slot
+interface Props {
+  etiquette: string
+  class?: string
+}
+
+const { etiquette, class: classe } = Astro.props
+---
+
+<label class:list={['block', classe]}>
+  <span class="etiquette">{etiquette}</span>
+  <slot />
+</label>

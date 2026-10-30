@@ -1,0 +1,20 @@
+---
+// Message d'état d'une page : confirmation (ok) ou erreur
+interface Props {
+  ton?: 'ok' | 'erreur'
+  class?: string
+}
+
+const { ton = 'ok', class: classe } = Astro.props
+---
+
+<p
+  class:list={[
+    'rounded-md px-4 py-2 text-sm',
+    ton === 'ok' ? 'bg-ok-soft text-ok' : 'bg-danger-soft text-danger',
+    classe,
+  ]}
+  role={ton === 'ok' ? 'status' : 'alert'}
+>
+  <slot />
+</p>

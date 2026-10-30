@@ -1,0 +1,40 @@
+---
+import BoutonCopier from './BoutonCopier.astro'
+
+// Texte à copier tel quel (consigne, balise, jeton) et son bouton « Copier ».
+// bloc : texte sur plusieurs lignes, bouton dessous ; ligne : code court, bouton à côté.
+interface Props {
+  id: string
+  texte: string
+  variante?: 'bloc' | 'ligne'
+  libelle?: string
+  /** Texte long : hauteur limitée, défilement */
+  long?: boolean
+  class?: string
+}
+
+const { id, texte, variante = 'bloc', libelle, long = false, class: classe } = Astro.props
+---
+
+{variante === 'ligne' ? (
+  <div class:list={['flex gap-2', classe]}>
+    <code
+      id={id}
+      class="min-w-0 flex-1 self-center truncate rounded border border-line bg-paper px-2 py-1.5 font-mono text-xs"
+    >
+      {texte}
+    </code>
+    <BoutonCopier cible={`#${id}`} libelle={libelle} />
+  </div>
+) : (
+  <div class:list={['space-y-2', classe]}>
+    <pre
+      id={id}
+      class:list={[
+        'overflow-auto rounded-md border border-line bg-paper p-3 font-mono text-xs whitespace-pre-wrap',
+        long && 'max-h-72',
+      ]}
+    >{texte}</pre>
+    <BoutonCopier cible={`#${id}`} libelle={libelle} />
+  </div>
+)}
