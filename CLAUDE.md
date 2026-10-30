@@ -125,4 +125,6 @@ Le modèle suit `/Users/martinlaetitia/Documents/011-KAWANAH-STUDIO/Contrat-corr
 - Brevo en fetch natif, pas de SDK
 - Valider toute entrée de l'API avec Zod ; l'API reçoit des requêtes de domaines tiers (sites clients) → CORS et rate limiting à traiter
 - Secrets uniquement dans `.env` (modèle : `apps/server/.env.exemple`)
+- **Design system du dashboard** (vitrine : `/design-systeme`) : jetons de couleur dans `styles/global.css` (`@theme`, jamais de couleur en dur), classes de base `.bouton`, `.bouton-principal`, `.bouton-danger` (avec `.bouton`), `.champ`, `.etiquette`, `.carte` ; composants `Badge`, `Message`, `Champ`, `BoutonCopier`, `BlocCopiable`, `ListeInfos`, `NavigationFiche`. Avant d'écrire du HTML dans une page, réutiliser ; un motif répété 2 fois devient un composant et rejoint la vitrine. Le widget garde ses propres jetons (`--fn-*`, `styles.ts`, Shadow DOM)
+- `lib/` : un fichier = un domaine (`corrections.ts` schémas, lecture, création, mise à jour ; `statuts.ts` règles du circuit, pures ; `exportAgent.ts` format du contrat § 6 et archive ; `projets.ts` cycle de vie du projet, dont `clore`)
 - Dashboard sous CSP stricte (`security.csp` d'Astro, empreintes des scripts et styles, en-tête HTTP) + HSTS (`middleware.ts`) : ni `onclick`/`onsubmit`, ni attribut `style` dans les pages ; passer par un `<script>` et des attributs `data-*`

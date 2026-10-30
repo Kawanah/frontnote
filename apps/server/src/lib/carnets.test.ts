@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { carnetSchema, enregistrerCarnet, lireCarnet, type Carnet } from './carnets'
-import { clore } from './corrections'
 import { openDatabase, type Db } from './db'
 import { DomainError } from './errors'
-import { createProjet } from './projets'
+import { clore, createProjet } from './projets'
 
 const CLE = 'cle-de-test'
 const ID = '0b8e6f0e-6f3a-4c1e-9d55-6a1f1c2b3d4e'

@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro'
+import { exporterProjet } from '../../../../lib/exportAgent'
 import { roleFor, SESSION_COOKIE, sessionValide } from '../../../../lib/auth'
-import { exporterProjet, filtreSchema } from '../../../../lib/corrections'
+import { filtreSchema } from '../../../../lib/corrections'
 import { erreur, invalide, json } from '../../../../lib/http'
 import { getProjet } from '../../../../lib/projets'
 import { dashboardToken, getDb } from '../../../../lib/runtime'

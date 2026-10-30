@@ -1,0 +1,149 @@
+---
+// Vitrine du design system du dashboard : jetons et composants, tels qu'ils
+// s'affichent. Avant d'écrire du HTML dans une page, regarder ici ce qui existe.
+import Badge from '../components/Badge.astro'
+import BlocCopiable from '../components/BlocCopiable.astro'
+import Champ from '../components/Champ.astro'
+import ListeInfos from '../components/ListeInfos.astro'
+import Message from '../components/Message.astro'
+import Layout from '../layouts/Layout.astro'
+import type { Ton } from '../lib/affichage'
+
+// Classes écrites en entier : Tailwind ne génère que ce qu'il lit dans le code
+const COULEURS = [
+  ['ink', 'bg-ink', 'Texte, bouton principal'],
+  ['paper', 'bg-paper', 'Fond de page'],
+  ['surface', 'bg-surface', 'Cartes, champs'],
+  ['muted', 'bg-muted', 'Texte secondaire'],
+  ['line', 'bg-line', 'Bordures'],
+  ['accent', 'bg-accent', 'Nouveautés, actions à faire'],
+  ['ok', 'bg-ok', 'Confirmation, terminé'],
+  ['info', 'bg-info', 'En cours'],
+  ['warn', 'bg-warn', 'À surveiller'],
+  ['danger', 'bg-danger', 'Erreur, action destructrice'],
+]
+const TONS: Ton[] = ['accent', 'info', 'warn', 'ok', 'ok-plein', 'danger', 'neutre']
+---
+
+<Layout title="Design system" fil={[['Design system']]}>
+  <h1 class="text-2xl font-bold tracking-tight">Design system</h1>
+  <p class="mt-1 text-sm text-muted">
+    Jetons dans <span class="font-mono">styles/global.css</span>, composants dans{' '}
+    <span class="font-mono">components/</span>. Une couleur ou un motif qui manque s'ajoute ici
+    d'abord.
+  </p>
+
+  <div class="mt-8 space-y-10">
+    <section class="space-y-3">
+      <h2 class="font-bold">Couleurs</h2>
+      <p class="text-sm text-muted">
+        Chaque ton d'état a une version pleine (texte, bordure) et une version douce (
+        <span class="font-mono">-soft</span>, fond).
+      </p>
+      <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {COULEURS.map(([nom, classe, usage]) => (
+          <li class="carte p-3">
+            <div class:list={['h-10 rounded border border-line', classe]} />
+            <p class="mt-2 font-mono text-xs">{nom}</p>
+            <p class="text-xs text-muted">{usage}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="font-bold">Typographie</h2>
+      <div class="carte space-y-2">
+        <p class="text-2xl font-bold tracking-tight">Titre de page · text-2xl font-bold</p>
+        <p class="font-bold">Titre de bloc · font-bold</p>
+        <p class="text-sm">Texte courant · text-sm</p>
+        <p class="text-xs text-muted">Texte secondaire · text-xs text-muted</p>
+        <p class="font-mono text-sm">MON-001 · identifiants et code · font-mono</p>
+      </div>
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="font-bold">Boutons</h2>
+      <div class="carte flex flex-wrap gap-3">
+        <button type="button" class="bouton-principal">
+          .bouton-principal
+        </button>
+        <button type="button" class="bouton">
+          .bouton
+        </button>
+        <button type="button" class="bouton bouton-danger">
+          .bouton .bouton-danger
+        </button>
+      </div>
+      <p class="text-sm text-muted">
+        Un seul bouton principal par bloc : l'action attendue. Danger : refuser, clore, supprimer.
+      </p>
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="font-bold">Champs · &lt;Champ etiquette&gt;</h2>
+      <div class="carte grid gap-4 sm:grid-cols-3">
+        <Champ etiquette="Texte">
+          <input class="champ" placeholder="retours-2026-10-30" />
+        </Champ>
+        <Champ etiquette="Liste">
+          <select class="champ">
+            <option>Mineure</option>
+            <option>Majeure</option>
+          </select>
+        </Champ>
+        <Champ etiquette="Zone de texte">
+          <textarea class="champ" rows="1"></textarea>
+        </Champ>
+      </div>
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="font-bold">Pastilles · &lt;Badge ton label&gt;</h2>
+      <div class="carte flex flex-wrap gap-2">
+        {TONS.map((ton) => (
+          <Badge ton={ton} label={ton} />
+        ))}
+      </div>
+      <p class="text-sm text-muted">
+        Statuts et gravités : tons fixés dans <span class="font-mono">lib/affichage.ts</span> (
+        <span class="font-mono">TON_STATUT</span>, <span class="font-mono">TON_GRAVITE</span>).
+      </p>
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="font-bold">Messages · &lt;Message ton&gt;</h2>
+      <Message>MON-001 est passée « À traiter ».</Message>
+      <Message ton="erreur">Pour passer en « À traiter », il manque : attendu.</Message>
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="font-bold">Texte à copier · &lt;BlocCopiable variante&gt;</h2>
+      <div class="carte space-y-4">
+        <BlocCopiable
+          id="exemple-bloc"
+          texte={'## Corrections (FrontNote)\n\nConsigne sur plusieurs lignes…'}
+        />
+        <BlocCopiable id="exemple-ligne" texte="?frontnote=cle-exemple" variante="ligne" />
+      </div>
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="font-bold">Informations · &lt;ListeInfos infos&gt;</h2>
+      <div class="carte text-sm">
+        <ListeInfos
+          infos={[
+            { libelle: 'Résumé', valeur: 'Le prix annuel affiche 320 €.' },
+            { libelle: 'Branche', valeur: 'retours-2026-10-30', code: true },
+            { libelle: 'Vide : omise', valeur: null },
+          ]}
+        />
+      </div>
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="font-bold">Carte · .carte</h2>
+      <div class="carte">Bloc blanc bordé : regroupe un sujet (qualification, historique…).</div>
+    </section>
+  </div>
+</Layout>

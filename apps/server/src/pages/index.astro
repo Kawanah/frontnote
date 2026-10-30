@@ -1,4 +1,6 @@
 ---
+import Badge from '../components/Badge.astro'
+import Champ from '../components/Champ.astro'
 import Layout from '../layouts/Layout.astro'
 import { DomainError } from '../lib/errors'
 import { createProjet, listProjets, nouveauProjetSchema } from '../lib/projets'
@@ -33,6 +35,9 @@ const projets = listProjets(getDb())
 <Layout title="Projets">
   <div class="mb-6 flex items-end justify-between gap-4">
     <h1 class="text-2xl font-bold tracking-tight">Projets</h1>
+    <a href="/design-systeme" class="ml-auto text-sm text-muted underline">
+      Design system
+    </a>
     <a
       href="/sauvegarde.db"
       download
@@ -55,15 +60,12 @@ const projets = listProjets(getDb())
                 <p class="font-semibold">{p.nom}</p>
                 <p class="font-mono text-xs text-muted">{p.id}</p>
               </div>
-              {p.clos_le && (
-                <span class="rounded-full bg-line px-2 py-0.5 text-xs font-semibold text-muted">
-                  clos
-                </span>
-              )}
+              {p.clos_le && <Badge ton="neutre" label="clos" />}
               {p.nouvelles > 0 && (
-                <span class="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent">
-                  {p.nouvelles} nouvelle{p.nouvelles > 1 ? 's' : ''}
-                </span>
+                <Badge
+                  ton="accent"
+                  label={`${p.nouvelles} nouvelle${p.nouvelles > 1 ? 's' : ''}`}
+                />
               )}
             </div>
             <p class="mt-4 text-sm text-muted">
@@ -78,8 +80,7 @@ const projets = listProjets(getDb())
   <details class="carte mt-8" open={erreur !== '' || projets.length === 0}>
     <summary class="cursor-pointer font-semibold">Nouveau projet</summary>
     <form method="post" class="mt-4 grid gap-4 sm:grid-cols-2">
-      <label>
-        <span class="etiquette">Identifiant (sert dans data-project)</span>
+      <Champ etiquette="Identifiant (sert dans data-project)">
         <input
           class="champ font-mono"
           name="id"
@@ -93,19 +94,16 @@ const projets = listProjets(getDb())
         <span id="aide-id" class="mt-1 block text-xs text-muted">
           Minuscules, chiffres et tirets, sans espace ni accent.
         </span>
-      </label>
-      <label>
-        <span class="etiquette">Nom</span>
+      </Champ>
+      <Champ etiquette="Nom">
         <input class="champ" name="nom" required maxlength="100" placeholder="Kawanah Studio" />
-      </label>
-      <label>
-        <span class="etiquette">Préfixe des identifiants (un par projet)</span>
+      </Champ>
+      <Champ etiquette="Préfixe des identifiants (un par projet)">
         <input class="champ font-mono" name="prefixe" value="REC-" pattern="[A-Z][A-Z0-9]{0,9}-" />
-      </label>
-      <label>
-        <span class="etiquette">Premier numéro (12 si REC-001 à 011 existent déjà)</span>
+      </Champ>
+      <Champ etiquette="Premier numéro (12 si REC-001 à 011 existent déjà)">
         <input class="champ" type="number" name="premier_numero" value="1" min="1" />
-      </label>
+      </Champ>
       {erreur && (
         <p class="text-sm text-danger sm:col-span-2" role="alert">
           {erreur}

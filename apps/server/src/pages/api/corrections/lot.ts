@@ -8,6 +8,7 @@ import {
   MAX_BODY_CHARS,
   preflight,
   readJson,
+  tropDeRequetes,
 } from '../../../lib/http'
 import { limiteSignalements } from '../../../lib/limites'
 import { getDb } from '../../../lib/runtime'
@@ -18,7 +19,7 @@ export const OPTIONS: APIRoute = () => preflight()
 // Un lot compte pour un seul envoi dans la limite de débit.
 export const POST: APIRoute = async ({ request, clientAddress }) => {
   if (!limiteSignalements(clientIp(request, clientAddress))) {
-    return json({ error: 'Trop de requêtes, réessayez plus tard' }, 429)
+    return tropDeRequetes()
   }
 
   const parsed = lotSchema.safeParse(await readJson(request, LOT_MAX * MAX_BODY_CHARS))

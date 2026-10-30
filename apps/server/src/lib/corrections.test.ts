@@ -3,24 +3,29 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { transitionsPossibles } from './statuts'
+import { archiverProjet, exporterProjet } from './exportAgent'
 import {
-  archiverProjet,
-  clore,
   creerDepuisWidget,
   creerLotDepuisWidget,
-  exporterProjet,
   LOT_MAX,
   listCorrections,
   lotSchema,
   mettreAJour,
   miseAJourAgentSchema,
   signalementSchema,
-  transitionsPossibles,
   type Signalement,
 } from './corrections'
 import { MIGRATIONS, openDatabase, userVersion, type Db } from './db'
 import { DomainError } from './errors'
-import { createProjet, getProjet, regenererCle, rouvrirProjet, setJetonAgent } from './projets'
+import {
+  clore,
+  createProjet,
+  getProjet,
+  regenererCle,
+  rouvrirProjet,
+  setJetonAgent,
+} from './projets'
 
 const CLE = 'cle-de-test'
 const signalement: Omit<Signalement, '_honey'> = {

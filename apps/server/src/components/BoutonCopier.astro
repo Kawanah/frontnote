@@ -1,0 +1,28 @@
+---
+// Copie dans le presse-papiers le texte de l'élément ciblé (sélecteur CSS)
+interface Props {
+  cible: string
+  libelle?: string
+  class?: string
+}
+
+const { cible, libelle = 'Copier', class: classe = 'bouton' } = Astro.props
+---
+
+<button type="button" class={classe} data-copier={cible}>
+  {libelle}
+</button>
+
+<script>
+  // Script inclus une seule fois par page, quel que soit le nombre de boutons
+  document.querySelectorAll<HTMLButtonElement>('[data-copier]').forEach((bouton) => {
+    bouton.addEventListener('click', async () => {
+      const cible = document.querySelector(bouton.dataset.copier ?? '')
+      if (!cible?.textContent) return
+      await navigator.clipboard.writeText(cible.textContent.trim())
+      const libelle = bouton.textContent
+      bouton.textContent = 'Copié'
+      setTimeout(() => (bouton.textContent = libelle), 1500)
+    })
+  })
+</script>

@@ -1,14 +1,24 @@
 ---
+import Message from '../../../components/Message.astro'
+import Champ from '../../../components/Champ.astro'
+import ListeInfos from '../../../components/ListeInfos.astro'
 import Badge from '../../../components/Badge.astro'
 import NavigationFiche from '../../../components/NavigationFiche.astro'
 import Layout from '../../../layouts/Layout.astro'
-import { dateCourte, dateHeure, lienVoir, TON_GRAVITE, TON_STATUT } from '../../../lib/affichage'
+import { transitionsPossibles } from '../../../lib/statuts'
+import {
+  dateCourte,
+  dateHeure,
+  lienVoir,
+  TON_GRAVITE,
+  TON_STATUT,
+  type Info,
+} from '../../../lib/affichage'
 import {
   getCorrection,
   listCorrections,
   mettreAJour,
   miseAJourAgenceSchema,
-  transitionsPossibles,
 } from '../../../lib/corrections'
 import { DomainError } from '../../../lib/errors'
 import { qualificationParDefaut } from '../../../lib/actions'
@@ -103,6 +113,27 @@ const revision = getProjet(db, projet.id)!.revision
 const passages = transitionsPossibles('agence', c.statut)
 const lienPage = lienVoir(c, projet.cle_activation)
 const t = c.traitement
+const retourAgent: Info[] = [
+  { libelle: 'Résumé', valeur: t?.resume },
+  { libelle: 'Vérification', valeur: t?.verification },
+  { libelle: 'Branche', valeur: t?.branche, code: true },
+  { libelle: 'PR', valeur: t?.pr && `#${t.pr}`, code: true },
+  { libelle: 'Commits', valeur: t?.commits?.join(', '), code: true },
+  { libelle: 'Corrigée le', valeur: t?.date && dateCourte(t.date) },
+  { libelle: 'Signalement (texte du client)', valeur: c.signalement },
+]
+const x = c.contexte
+const contexteTechnique: Info[] = [
+  { libelle: 'Élément visé (sélecteur)', valeur: c.selecteur, code: true },
+  { libelle: 'Fenêtre', valeur: x && `${x.viewport.width} × ${x.viewport.height} px` },
+  {
+    libelle: 'Écran',
+    valeur: x && `${x.screen.width} × ${x.screen.height} px, densité ${x.pixelRatio}`,
+  },
+  { libelle: 'Tactile', valeur: x && (x.touch ? 'oui' : 'non') },
+  { libelle: 'Langue', valeur: x?.language },
+  { libelle: 'Navigateur (brut)', valeur: x?.userAgent, code: true },
+]
 // Un seul bouton d'enregistrement : il fait aussi passer une nouvelle demande « À traiter »
 const versTraiter = c.statut === 'nouvelle' && passages.includes('a_traiter')
 // Bloc replié : ouvert d'office si l'erreur porte sur un de ses champs
@@ -125,9 +156,9 @@ const lieu = c.lieu_correction ?? defauts.lieu_correction
   </div>
 
   {traitee && (
-    <p class="mb-4 rounded-md bg-ok-soft px-4 py-2 text-sm text-ok" role="status">
+    <Message class="mb-4">
       <span class="font-mono">{traitee}</span> est passée « À traiter ». Voici la suivante.
-    </p>
+    </Message>
   )}
 
   <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
@@ -145,15 +176,11 @@ const lieu = c.lieu_correction ?? defauts.lieu_correction
     </div>
   </div>
 
-  {enregistre && !erreur && (
-    <p class="mb-4 rounded-md bg-ok-soft px-4 py-2 text-sm text-ok" role="status">
-      Enregistré.
-    </p>
-  )}
+  {enregistre && !erreur && <Message class="mb-4">Enregistré.</Message>}
   {erreur && (
-    <p class="mb-4 rounded-md bg-danger-soft px-4 py-2 text-sm text-danger" role="alert">
+    <Message ton="erreur" class="mb-4">
       {erreur}
-    </p>
+    </Message>
   )}
 
   <div class="grid gap-6 lg:grid-cols-[1fr_22rem]">
@@ -214,8 +241,7 @@ const lieu = c.lieu_correction ?? defauts.lieu_correction
         <h2 class="mb-4 font-bold">Qualification</h2>
         <form method="post" class="grid gap-4 sm:grid-cols-2">
           <input type="hidden" name="revision" value={revision} />
-          <label>
-            <span class="etiquette">Nature</span>
+          <Champ etiquette="Nature">
             <select class="champ" name="nature">
               <option value="">À qualifier</option>
               {projet.natures.map((n) => (
@@ -224,9 +250,8 @@ const lieu = c.lieu_correction ?? defauts.lieu_correction
                 </option>
               ))}
             </select>
-          </label>
-          <label>
-            <span class="etiquette">Gravité</span>
+          </Champ>
+          <Champ etiquette="Gravité">
             <select class="champ" name="gravite">
               <option value="">·</option>
               {GRAVITES.map((g) => (
@@ -235,9 +260,8 @@ const lieu = c.lieu_correction ?? defauts.lieu_correction
                 </option>
               ))}
             </select>
-          </label>
-          <label>
-            <span class="etiquette">Lieu de correction</span>
+          </Champ>
+          <Champ etiquette="Lieu de correction">
             <select class="champ" name="lieu_correction">
               <option value="">·</option>
               {LIEUX.map((l) => (
@@ -246,37 +270,31 @@ const lieu = c.lieu_correction ?? defauts.lieu_correction
                 </option>
               ))}
             </select>
-          </label>
-          <label>
-            <span class="etiquette">Lot</span>
+          </Champ>
+          <Champ etiquette="Lot">
             <input class="champ" name="lot" value={c.lot ?? defauts.lot ?? ''} />
-          </label>
+          </Champ>
           {!texteClient && (
             <>
-              <label class="sm:col-span-2">
-                <span class="etiquette">Constat</span>
+              <Champ etiquette="Constat" class="sm:col-span-2">
                 <textarea class="champ" name="constat" rows="2">{c.constat ?? ''}</textarea>
-              </label>
-              <label class="sm:col-span-2">
-                <span class="etiquette">Attendu</span>
+              </Champ>
+              <Champ etiquette="Attendu" class="sm:col-span-2">
                 <textarea class="champ" name="attendu" rows="2">{c.attendu ?? ''}</textarea>
-              </label>
+              </Champ>
             </>
           )}
-          <label class="sm:col-span-2">
-            <span class="etiquette">Note de l'agence</span>
+          <Champ etiquette="Note de l'agence" class="sm:col-span-2">
             <textarea class="champ" name="note" rows="2">{c.note ?? ''}</textarea>
-          </label>
+          </Champ>
 
           <details class="rounded-md border border-line p-3 sm:col-span-2" open={detailsOuverts}>
             <summary class="cursor-pointer text-sm font-semibold">Plus de champs</summary>
             <div class="mt-4 grid gap-4 sm:grid-cols-2">
-              <label>
-                <span class="etiquette">Page</span>
+              <Champ etiquette="Page">
                 <input class="champ font-mono" name="page" value={c.page} />
-              </label>
-              <label>
-                <span class="etiquette">Appareil</span>
+              </Champ>
+              <Champ etiquette="Appareil">
                 <select class="champ" name="appareil">
                   {APPAREILS.map((a) => (
                     <option value={a} selected={c.appareil === a}>
@@ -284,52 +302,45 @@ const lieu = c.lieu_correction ?? defauts.lieu_correction
                     </option>
                   ))}
                 </select>
-              </label>
-              <label class="sm:col-span-2">
-                <span class="etiquette">Zone</span>
+              </Champ>
+              <Champ etiquette="Zone" class="sm:col-span-2">
                 <input class="champ" name="zone" value={c.zone} />
-              </label>
-              <label class="sm:col-span-2">
-                <span class="etiquette">État (appli : connecté, rôle, données)</span>
+              </Champ>
+              <Champ etiquette="État (appli : connecté, rôle, données)" class="sm:col-span-2">
                 <input class="champ" name="etat" value={c.etat ?? ''} />
-              </label>
-              <label>
-                <span class="etiquette">Source du texte (lien Google Doc)</span>
+              </Champ>
+              <Champ etiquette="Source du texte (lien Google Doc)">
                 <input
                   class="champ"
                   type="url"
                   name="source_lien"
                   value={c.source_texte?.lien ?? ''}
                 />
-              </label>
-              <label>
-                <span class="etiquette">Lu le</span>
+              </Champ>
+              <Champ etiquette="Lu le">
                 <input
                   class="champ"
                   type="date"
                   name="source_lu_le"
                   value={c.source_texte?.lu_le ?? ''}
                 />
-              </label>
-              <label class="sm:col-span-2">
-                <span class="etiquette">Pièces jointes (un lien par ligne)</span>
+              </Champ>
+              <Champ etiquette="Pièces jointes (un lien par ligne)" class="sm:col-span-2">
                 <textarea
                   class="champ font-mono text-xs"
                   name="pieces_jointes"
                   rows="2"
                 >{c.pieces_jointes.join('\n')}</textarea>
-              </label>
-              <label>
-                <span class="etiquette">Test lié</span>
+              </Champ>
+              <Champ etiquette="Test lié">
                 <input
                   class="champ font-mono"
                   name="test_lie"
                   value={c.test_lie ?? ''}
                   placeholder="LEG-04"
                 />
-              </label>
-              <label>
-                <span class="etiquette">Ligne de suivi</span>
+              </Champ>
+              <Champ etiquette="Ligne de suivi">
                 <input
                   class="champ"
                   type="number"
@@ -337,7 +348,7 @@ const lieu = c.lieu_correction ?? defauts.lieu_correction
                   name="ligne_suivi"
                   value={c.ligne_suivi ?? ''}
                 />
-              </label>
+              </Champ>
             </div>
           </details>
 
@@ -380,56 +391,15 @@ const lieu = c.lieu_correction ?? defauts.lieu_correction
       <section class="carte space-y-3 text-sm">
         <h2 class="font-bold">Retour de l'agent</h2>
         {t || c.question || c.signalement ? (
-          <dl class="space-y-3">
+          <>
             {c.question && (
               <div>
-                <dt class="etiquette">Question pour le client</dt>
-                <dd class="rounded-md bg-warn-soft p-2">{c.question}</dd>
+                <p class="etiquette">Question pour le client</p>
+                <p class="rounded-md bg-warn-soft p-2">{c.question}</p>
               </div>
             )}
-            {t?.resume && (
-              <div>
-                <dt class="etiquette">Résumé</dt>
-                <dd>{t.resume}</dd>
-              </div>
-            )}
-            {t?.verification && (
-              <div>
-                <dt class="etiquette">Vérification</dt>
-                <dd>{t.verification}</dd>
-              </div>
-            )}
-            {t?.branche && (
-              <div>
-                <dt class="etiquette">Branche</dt>
-                <dd class="font-mono break-all">{t.branche}</dd>
-              </div>
-            )}
-            {t?.pr && (
-              <div>
-                <dt class="etiquette">PR</dt>
-                <dd class="font-mono">#{t.pr}</dd>
-              </div>
-            )}
-            {t?.commits?.length ? (
-              <div>
-                <dt class="etiquette">Commits</dt>
-                <dd class="font-mono">{t.commits.join(', ')}</dd>
-              </div>
-            ) : null}
-            {t?.date && (
-              <div>
-                <dt class="etiquette">Corrigée le</dt>
-                <dd>{dateCourte(t.date)}</dd>
-              </div>
-            )}
-            {c.signalement && (
-              <div>
-                <dt class="etiquette">Signalement (texte du client)</dt>
-                <dd>{c.signalement}</dd>
-              </div>
-            )}
-          </dl>
+            <ListeInfos infos={retourAgent} />
+          </>
         ) : (
           <p class="text-muted">Rien pour l'instant.</p>
         )}
@@ -457,45 +427,9 @@ const lieu = c.lieu_correction ?? defauts.lieu_correction
       {(c.contexte || c.selecteur) && (
         <details class="carte text-sm">
           <summary class="cursor-pointer font-bold">Contexte technique</summary>
-          <dl class="mt-3 space-y-2">
-            {c.selecteur && (
-              <div>
-                <dt class="etiquette">Élément visé (sélecteur)</dt>
-                <dd class="font-mono text-xs break-all">{c.selecteur}</dd>
-              </div>
-            )}
-          </dl>
-          {c.contexte && (
-            <dl class="mt-3 space-y-2">
-              <div>
-                <dt class="etiquette">Fenêtre</dt>
-                <dd>
-                  {c.contexte.viewport.width} × {c.contexte.viewport.height} px
-                </dd>
-              </div>
-              <div>
-                <dt class="etiquette">Écran</dt>
-                <dd>
-                  {c.contexte.screen.width} × {c.contexte.screen.height} px, densité{' '}
-                  {c.contexte.pixelRatio}
-                </dd>
-              </div>
-              <div>
-                <dt class="etiquette">Tactile</dt>
-                <dd>{c.contexte.touch ? 'oui' : 'non'}</dd>
-              </div>
-              {c.contexte.language && (
-                <div>
-                  <dt class="etiquette">Langue</dt>
-                  <dd>{c.contexte.language}</dd>
-                </div>
-              )}
-              <div>
-                <dt class="etiquette">Navigateur (brut)</dt>
-                <dd class="font-mono text-xs break-all">{c.contexte.userAgent}</dd>
-              </div>
-            </dl>
-          )}
+          <div class="mt-3">
+            <ListeInfos infos={contexteTechnique} />
+          </div>
         </details>
       )}
     </aside>

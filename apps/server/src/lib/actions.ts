@@ -1,13 +1,8 @@
 // Boutons rapides de la liste du dashboard. Ils n'ouvrent que les passages
 // permis à l'agence ; l'écriture passe ensuite par mettreAJour (révision, droits,
 // champs exigés, historique), comme depuis la fiche.
-import {
-  manquantsPour,
-  mettreAJour,
-  transitionsPossibles,
-  type Correction,
-  type MiseAJourAgence,
-} from './corrections'
+import { manquantsPour, transitionsPossibles } from './statuts'
+import { mettreAJour, type Correction, type MiseAJourAgence } from './corrections'
 import { aujourdhui } from './dates'
 import type { Db } from './db'
 import type { Gravite, Lieu, Nature } from './vocabulaire'

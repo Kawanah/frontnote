@@ -1,11 +1,16 @@
 @import 'tailwindcss';
 
+/* Design system du dashboard : jetons (couleurs, polices) puis classes de base.
+   Vitrine : /design-systeme. Le widget a ses propres jetons (--fn-*, styles.ts) :
+   il vit dans le Shadow DOM des sites clients. */
 @theme {
+  /* Neutres */
   --color-ink: #1a1a1a;
   --color-paper: #f7f7f4;
   --color-surface: #ffffff;
   --color-muted: #6b6b66;
   --color-line: #e2e2dc;
+  /* Accent (nouveautés, actions à faire) et tons d'état : couleur pleine + fond doux */
   --color-accent: #d9480f;
   --color-accent-soft: #fdefe7;
   --color-ok: #2b7a4b;
@@ -32,6 +37,10 @@
   }
   .bouton-principal {
     @apply inline-flex items-center justify-center gap-2 rounded-md bg-ink px-3 py-2 text-sm font-semibold text-white hover:bg-black;
+  }
+  /* À combiner avec .bouton : action destructrice (refuser, clore) */
+  .bouton-danger {
+    @apply border-danger text-danger hover:border-danger;
   }
   .carte {
     @apply rounded-lg border border-line bg-surface p-5;

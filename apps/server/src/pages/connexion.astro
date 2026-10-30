@@ -1,4 +1,5 @@
 ---
+import Champ from '../components/Champ.astro'
 import Layout from '../layouts/Layout.astro'
 import { isAuthorized, SESSION_COOKIE, valeurSession } from '../lib/auth'
 import { clientIp } from '../lib/http'
@@ -30,10 +31,9 @@ if (Astro.request.method === 'POST') {
 <Layout title="Connexion">
   <form method="post" class="carte mx-auto mt-16 max-w-sm space-y-4">
     <h1 class="text-lg font-bold">Connexion</h1>
-    <label class="block">
-      <span class="etiquette">Jeton agence</span>
+    <Champ etiquette="Jeton agence">
       <input class="champ" type="password" name="jeton" required autocomplete="current-password" />
-    </label>
+    </Champ>
     {erreur && (
       <p class="text-sm text-danger" role="alert">
         {erreur}

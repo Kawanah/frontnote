@@ -5,6 +5,7 @@ import { aujourdhui, maintenant } from './dates'
 import { transaction, type Db } from './db'
 import { DomainError } from './errors'
 import { bumpRevision, getProjet, nextId, projetIdSchema, type Projet } from './projets'
+import { champsManquants, transitionsPossibles } from './statuts'
 import { describeUserAgent } from './userAgent'
 import {
   APPAREILS,
@@ -384,86 +385,6 @@ function marquerRevision(db: Db, ids: string[], revision: number) {
   ).run(revision, ...ids)
 }
 
-// --- Statuts (contrat § 4) ---------------------------------------------------
-
-// Statuts que chaque rôle peut poser
-const CIBLES: Record<'agence' | 'agent', readonly Statut[]> = {
-  agence: [
-    'a_traiter',
-    'question_client',
-    'a_faire_client',
-    'validee',
-    'hors_perimetre',
-    'refusee',
-    'doublon',
-  ],
-  agent: ['en_cours', 'question_client', 'a_faire_client', 'corrigee', 'en_ligne'],
-}
-
-// Statuts de départ autorisés pour atteindre chaque statut
-const DEPUIS: Record<Statut, readonly Statut[]> = {
-  nouvelle: [],
-  a_traiter: ['nouvelle', 'question_client', 'a_faire_client', 'corrigee', 'en_ligne'],
-  en_cours: ['a_traiter'],
-  question_client: ['a_traiter', 'en_cours'],
-  a_faire_client: ['a_traiter', 'en_cours'],
-  corrigee: ['a_traiter', 'en_cours'],
-  en_ligne: ['corrigee'],
-  validee: ['en_ligne', 'a_faire_client'],
-  hors_perimetre: ['nouvelle', 'a_traiter'],
-  refusee: ['nouvelle', 'a_traiter', 'question_client'],
-  doublon: ['nouvelle', 'a_traiter'],
-}
-
-export const transitionsPossibles = (role: 'agence' | 'agent', de: Statut): Statut[] =>
-  CIBLES[role].filter((vers) => DEPUIS[vers].includes(de))
-
-const LIBELLES_CHAMPS: Record<string, string> = {
-  nature: 'nature',
-  gravite: 'gravité',
-  lieu_correction: 'lieu de correction',
-  constat: 'constat',
-  attendu: 'attendu',
-  texte_attendu: 'texte attendu',
-  question: 'question',
-  note: 'note (raison)',
-  'traitement.branche': 'traitement.branche',
-  'traitement.resume': 'traitement.resume',
-  'traitement.verification': 'traitement.verification',
-}
-
-// Champs indispensables avant d'entrer dans un statut
-function champsManquants(vers: Statut, c: Correction, role: 'agence' | 'agent'): string[] {
-  const requis: [string, unknown][] = []
-  if (vers === 'a_traiter') {
-    requis.push(
-      ['nature', c.nature],
-      ['gravite', c.gravite],
-      ['lieu_correction', c.lieu_correction],
-      ['constat', c.constat],
-      ['attendu', c.attendu]
-    )
-    if (c.nature === 'texte') requis.push(['texte_attendu', c.texte_attendu])
-  }
-  if (vers === 'question_client' && role === 'agent') requis.push(['question', c.question])
-  if (vers === 'corrigee') {
-    requis.push(
-      ['traitement.branche', c.traitement?.branche],
-      ['traitement.resume', c.traitement?.resume],
-      ['traitement.verification', c.traitement?.verification]
-    )
-  }
-  if (vers === 'refusee' || vers === 'doublon') requis.push(['note', c.note])
-  return requis
-    .filter(([, value]) => value == null || value === '')
-    .map(([k]) => LIBELLES_CHAMPS[k] ?? k)
-}
-
-// Champs qui manquent pour que l'agence pose ce statut (affichage du dashboard ;
-// mettreAJour refait la vérification à l'écriture)
-export const manquantsPour = (vers: Statut, c: Correction): string[] =>
-  champsManquants(vers, c, 'agence')
-
 // --- Mise à jour par l'agence ou l'agent -------------------------------------
 
 export function mettreAJour(
@@ -546,93 +467,5 @@ export function mettreAJour(
     }
     marquerRevision(db, [id], bumpRevision(db, projet.id))
     return getCorrection(db, id) as Correction
-  })
-}
-
-// --- Export pour l'agent (contrat § 6) ---------------------------------------
-
-export function versContrat(c: Correction) {
-  return {
-    id: c.id,
-    projet: c.projet,
-    date_signalement: c.date_signalement,
-    signale_par: c.signale_par,
-    canal: c.canal,
-    page: c.page,
-    etat: c.etat,
-    zone: c.zone,
-    appareil: c.appareil,
-    navigateur: c.navigateur,
-    nature: c.nature,
-    constat: c.constat,
-    attendu: c.attendu,
-    texte_actuel: c.texte_actuel,
-    texte_attendu: c.texte_attendu,
-    source_texte: c.source_texte,
-    pieces_jointes: c.pieces_jointes,
-    gravite: c.gravite,
-    test_lie: c.test_lie,
-    ligne_suivi: c.ligne_suivi,
-    lieu_correction: c.lieu_correction,
-    lot: c.lot,
-    statut: c.statut,
-    question: c.question,
-    signalement: c.signalement,
-    note: c.note,
-    traitement: c.traitement,
-    historique: c.historique,
-    // Révision à renvoyer pour écrire cette correction (contrat v3, § 9)
-    revision: c.revision,
-    // Hors contrat : pour retrouver l'élément exact sur la page
-    ancrage: { url: c.url, selecteur: c.selecteur, x: c.x, y: c.y },
-    type_client: c.type_client,
-    couleur: c.couleur,
-  }
-}
-
-export function exporterProjet(db: Db, projetId: string, filtre: Filtre = {}) {
-  const projet = getProjet(db, projetId)
-  if (!projet) throw new DomainError(404, `Projet inconnu : « ${projetId} »`)
-  return {
-    projet: projet.id,
-    revision: projet.revision,
-    mis_a_jour_le: projet.mis_a_jour_le,
-    corrections: listCorrections(db, projet.id, filtre).map(versContrat),
-  }
-}
-
-// --- Clôture d'un projet -----------------------------------------------------
-
-// Archive complète (toutes les corrections, avec leur historique) à garder avant la purge
-export function archiverProjet(db: Db, projetId: string) {
-  const { corrections, ...entete } = exporterProjet(db, projetId)
-  const projet = getProjet(db, projetId) as Projet
-  return {
-    ...entete,
-    nom: projet.nom,
-    prefixe: projet.prefixe,
-    compteur: projet.compteur,
-    archive_le: maintenant(),
-    corrections,
-  }
-}
-
-// Fin de projet : supprime corrections et historique, retire le jeton agent, refuse le
-// widget. Le projet reste : préfixe et compteur ne servent jamais deux fois (§ 7.4).
-export function clore(db: Db, projetId: string): number {
-  return transaction(db, () => {
-    if (!getProjet(db, projetId)) throw new DomainError(404, `Projet inconnu : « ${projetId} »`)
-    db.prepare(
-      'DELETE FROM historique WHERE correction_id IN (SELECT id FROM corrections WHERE projet = ?)'
-    ).run(projetId)
-    const { changes } = db.prepare('DELETE FROM corrections WHERE projet = ?').run(projetId)
-    // Brouillons des clients : le widget disparaît, ils n'ont plus d'usage
-    db.prepare('DELETE FROM carnets WHERE projet = ?').run(projetId)
-    db.prepare('UPDATE projets SET clos_le = ?, jeton_agent = NULL WHERE id = ?').run(
-      maintenant(),
-      projetId
-    )
-    bumpRevision(db, projetId)
-    return Number(changes)
   })
 }

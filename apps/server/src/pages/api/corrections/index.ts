@@ -1,6 +1,14 @@
 import type { APIRoute } from 'astro'
 import { creerDepuisWidget, signalementSchema } from '../../../lib/corrections'
-import { clientIp, erreur, invalide, json, preflight, readJson } from '../../../lib/http'
+import {
+  clientIp,
+  erreur,
+  invalide,
+  json,
+  preflight,
+  readJson,
+  tropDeRequetes,
+} from '../../../lib/http'
 import { limiteSignalements } from '../../../lib/limites'
 import { getDb } from '../../../lib/runtime'
 
@@ -9,7 +17,7 @@ export const OPTIONS: APIRoute = () => preflight()
 // Signalement envoyé par le widget (public) : crée une correction « nouvelle »
 export const POST: APIRoute = async ({ request, clientAddress }) => {
   if (!limiteSignalements(clientIp(request, clientAddress))) {
-    return json({ error: 'Trop de requêtes, réessayez plus tard' }, 429)
+    return tropDeRequetes()
   }
 
   const parsed = signalementSchema.safeParse(await readJson(request))
