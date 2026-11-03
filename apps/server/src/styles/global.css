@@ -42,7 +42,29 @@
   .bouton-danger {
     @apply border-danger text-danger hover:border-danger;
   }
+  /* Volet latéral (composant Volet) : <dialog> plaqué à droite, pleine hauteur */
+  .volet {
+    @apply fixed inset-y-0 right-0 left-auto m-0 h-dvh max-h-none w-full max-w-sm border-0 border-l border-line bg-surface p-0 text-ink shadow-xl;
+  }
+  .volet[open] {
+    animation: volet-entree 0.2s ease-out;
+  }
+  .volet::backdrop {
+    background: color-mix(in srgb, var(--color-ink) 40%, transparent);
+  }
   .carte {
     @apply rounded-lg border border-line bg-surface p-5;
+  }
+}
+
+@keyframes volet-entree {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .volet[open] {
+    animation: none;
   }
 }

@@ -1,6 +1,7 @@
 ---
 import BoutonCopier from '../../../components/BoutonCopier.astro'
 import Message from '../../../components/Message.astro'
+import Volet from '../../../components/Volet.astro'
 import Champ from '../../../components/Champ.astro'
 import Badge from '../../../components/Badge.astro'
 import Layout from '../../../layouts/Layout.astro'
@@ -210,12 +211,6 @@ const enCours = compte(ONGLETS[1].statuts)
     </p>
   )}
 
-  <datalist id="raisons-refus">
-    {RAISONS_REFUS.map((r) => (
-      <option value={r} />
-    ))}
-  </datalist>
-
   <form method="post" id="a-traiter">
     <input type="hidden" name="_action" value="a_traiter" />
     <input type="hidden" name="revision" value={projet.revision} />
@@ -340,31 +335,14 @@ const enCours = compte(ONGLETS[1].statuts)
                         </a>
                       )}
                       {actions.refuser && (
-                        <details class="relative">
-                          <summary class="bouton cursor-pointer list-none text-xs whitespace-nowrap">
-                            Refuser
-                          </summary>
-                          <form
-                            method="post"
-                            class="carte absolute right-0 z-10 mt-1 w-64 space-y-2 shadow-lg"
-                          >
-                            <input type="hidden" name="_action" value="statut" />
-                            <input type="hidden" name="id" value={c.id} />
-                            <input type="hidden" name="revision" value={projet.revision} />
-                            <input type="hidden" name="statut" value="refusee" />
-                            <Champ etiquette="Raison du refus">
-                              <input
-                                class="champ"
-                                name="historique_note"
-                                list="raisons-refus"
-                                required
-                                maxlength="500"
-                                placeholder="Essai de l'agence…"
-                              />
-                            </Champ>
-                            <button class="bouton bouton-danger w-full">Refuser {c.id}</button>
-                          </form>
-                        </details>
+                        <button
+                          type="button"
+                          class="bouton text-xs whitespace-nowrap"
+                          data-volet="volet-refus"
+                          data-volet-valeur={c.id}
+                        >
+                          Refuser
+                        </button>
                       )}
                     </div>
                   </td>
@@ -376,9 +354,52 @@ const enCours = compte(ONGLETS[1].statuts)
       </div>
     </>
   )}
+
+  <Volet id="volet-refus" titre="Refuser">
+    <form method="post" class="space-y-5" id="form-refus">
+      <input type="hidden" name="_action" value="statut" />
+      <input type="hidden" name="id" data-volet-valeur />
+      <input type="hidden" name="revision" value={projet.revision} />
+      <input type="hidden" name="statut" value="refusee" />
+      <div>
+        <p class="etiquette">Raison fréquente : un clic suffit</p>
+        <div class="flex flex-col gap-2">
+          {RAISONS_REFUS.map((r) => (
+            <button type="button" class="bouton justify-start" data-raison={r}>
+              {r}
+            </button>
+          ))}
+        </div>
+      </div>
+      <Champ etiquette="Autre raison">
+        <input
+          class="champ"
+          name="historique_note"
+          required
+          maxlength="500"
+          placeholder="Raison du refus…"
+        />
+      </Champ>
+      <div class="flex gap-2">
+        <button class="bouton bouton-danger">Refuser</button>
+        <button type="button" class="bouton" data-fermer-volet>
+          Annuler
+        </button>
+      </div>
+    </form>
+  </Volet>
 </Layout>
 
 <script>
+  // Raison fréquente : remplit la raison et refuse aussitôt
+  const formRefus = document.querySelector<HTMLFormElement>('#form-refus')
+  formRefus?.querySelectorAll<HTMLButtonElement>('[data-raison]').forEach((bouton) => {
+    bouton.addEventListener('click', () => {
+      formRefus.historique_note.value = bouton.dataset.raison ?? ''
+      formRefus.requestSubmit()
+    })
+  })
+
   // Tout cocher / tout décocher
   document
     .querySelector<HTMLInputElement>('[data-tout-cocher]')
