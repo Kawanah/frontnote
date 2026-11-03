@@ -1,0 +1,53 @@
+---
+// Volet latéral : panneau qui glisse depuis la droite pour une action courte sans
+// quitter la page (fenêtre modale native <dialog>). S'ouvre par un bouton
+// data-volet="<id>" ; son data-volet-valeur (ex. MON-012) remplit, dans le volet,
+// les champs [data-volet-valeur] et les textes [data-volet-texte].
+interface Props {
+  id: string
+  titre: string
+}
+
+const { id, titre } = Astro.props
+---
+
+<dialog id={id} class="volet" aria-labelledby={`${id}-titre`}>
+  <div class="flex items-center justify-between gap-4 border-b border-line px-5 py-4">
+    <h2 id={`${id}-titre`} class="font-bold">
+      {titre} <span class="font-mono" data-volet-texte></span>
+    </h2>
+    <button type="button" class="bouton px-2 py-1" data-fermer-volet aria-label="Fermer">
+      ✕
+    </button>
+  </div>
+  <div class="p-5">
+    <slot />
+  </div>
+</dialog>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('[data-volet]').forEach((bouton) => {
+    bouton.addEventListener('click', () => {
+      const volet = document.getElementById(bouton.dataset.volet ?? '')
+      if (!(volet instanceof HTMLDialogElement)) return
+      // Formulaire vide à chaque ouverture : rien ne reste de la ligne précédente
+      volet.querySelector('form')?.reset()
+      const valeur = bouton.dataset.voletValeur ?? ''
+      volet.querySelectorAll<HTMLInputElement>('[data-volet-valeur]').forEach((champ) => {
+        champ.value = valeur
+      })
+      volet.querySelectorAll('[data-volet-texte]').forEach((texte) => {
+        texte.textContent = valeur
+      })
+      volet.showModal()
+    })
+  })
+
+  document.querySelectorAll<HTMLDialogElement>('dialog.volet').forEach((volet) => {
+    // Clic sur le fond assombri, hors du panneau
+    volet.addEventListener('click', (e) => e.target === volet && volet.close())
+    volet.querySelectorAll('[data-fermer-volet]').forEach((bouton) => {
+      bouton.addEventListener('click', () => volet.close())
+    })
+  })
+</script>

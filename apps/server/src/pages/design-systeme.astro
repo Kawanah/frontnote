@@ -6,6 +6,7 @@ import BlocCopiable from '../components/BlocCopiable.astro'
 import Champ from '../components/Champ.astro'
 import ListeInfos from '../components/ListeInfos.astro'
 import Message from '../components/Message.astro'
+import Volet from '../components/Volet.astro'
 import Layout from '../layouts/Layout.astro'
 import type { Ton } from '../lib/affichage'
 
@@ -139,6 +140,22 @@ const TONS: Ton[] = ['accent', 'info', 'warn', 'ok', 'ok-plein', 'danger', 'neut
           ]}
         />
       </div>
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="font-bold">Volet · &lt;Volet id titre&gt;</h2>
+      <div class="carte flex flex-wrap items-center gap-3">
+        <button type="button" class="bouton" data-volet="volet-exemple" data-volet-valeur="MON-001">
+          Ouvrir le volet
+        </button>
+        <p class="text-sm text-muted">
+          Action courte sans quitter la page (refuser, confirmer). Un seul volet par action, partagé
+          par toutes les lignes.
+        </p>
+      </div>
+      <Volet id="volet-exemple" titre="Exemple">
+        <p class="text-sm">Contenu du volet : formulaire court, boutons en bas.</p>
+      </Volet>
     </section>
 
     <section class="space-y-3">
